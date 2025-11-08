@@ -104,7 +104,8 @@ pub struct Block {
     pub miner: Address,                   // 矿工地址
     pub difficulty: U256,                 // 难度
     pub total_difficulty: U256,           // 总难度
-    pub extra_data: Vec<u8>,              // 额外数据
+    #[serde(with = "hex_bytes")]
+    pub extra_data: Vec<u8>,              // 额外数据（十六进制字符串）
     pub size: U256,                       // 区块大小
     pub gas_limit: U256,                  // Gas 限制
     pub gas_used: U256,                   // 已使用 Gas
@@ -128,7 +129,8 @@ pub struct Transaction {
     pub value: U256,                      // 转账金额（wei）
     pub gas_price: U256,                  // Gas 价格
     pub gas: U256,                        // Gas 限制
-    pub input: Vec<u8>,                   // 输入数据
+    #[serde(with = "hex_bytes")]
+    pub input: Vec<u8>,                   // 输入数据（十六进制字符串）
     pub v: U64,                           // 签名 v 值
     pub r: U256,                          // 签名 r 值
     pub s: U256,                          // 签名 s 值
@@ -163,7 +165,8 @@ pub struct Log {
     pub block_hash: H256,                 // 区块哈希
     pub block_number: U64,                // 区块号
     pub address: Address,                 // 合约地址
-    pub data: Vec<u8>,                    // 日志数据
+    #[serde(with = "hex_bytes")]
+    pub data: Vec<u8>,                    // 日志数据（十六进制字符串）
     pub topics: Vec<H256>,                // 日志主题
 }
 
@@ -176,7 +179,72 @@ pub struct CallRequest {
     pub gas: Option<U256>,                // Gas 限制（可选）
     pub gas_price: Option<U256>,          // Gas 价格（可选）
     pub value: Option<U256>,              // 转账金额（可选）
-    pub data: Option<Vec<u8>>,            // 调用数据（可选）
+    #[serde(default, with = "hex_data")]
+    pub data: Option<Vec<u8>>,            // 调用数据（十六进制字符串，可选）
+}
+
+/// 自定义序列化模块：处理十六进制字符串和可选字节数组的转换
+mod hex_data {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(data: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match data {
+            Some(bytes) => {
+                let hex_string = format!("0x{}", hex::encode(bytes));
+                serializer.serialize_str(&hex_string)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt: Option<String> = Option::deserialize(deserializer)?;
+        match opt {
+            Some(s) => {
+                let s = s.trim_start_matches("0x");
+                if s.is_empty() {
+                    Ok(Some(vec![]))
+                } else {
+                    hex::decode(s)
+                        .map(Some)
+                        .map_err(serde::de::Error::custom)
+                }
+            }
+            None => Ok(None),
+        }
+    }
+}
+
+/// 自定义序列化模块：处理十六进制字符串和必需字节数组的转换
+mod hex_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(data: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex_string = format!("0x{}", hex::encode(data));
+        serializer.serialize_str(&hex_string)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = String::deserialize(deserializer)?;
+        let s = s.trim_start_matches("0x");
+        if s.is_empty() {
+            Ok(vec![])
+        } else {
+            hex::decode(s).map_err(serde::de::Error::custom)
+        }
+    }
 }
 
 /// 日志过滤器参数（符合 EIP-1474）
