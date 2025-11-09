@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 尽量采用表静类型
 尽量无状态不可变编程
+应用服务定义都用trait
 
 ## Project Overview
 
