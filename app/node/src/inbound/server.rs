@@ -1,8 +1,9 @@
 //! 以太坊 JSON-RPC 的 HTTP 服务器实现
 //!
 //! 使用 Axum 构建的低延迟 HTTP 服务器，配置经过优化
+//! 完全静态分发，无运行时开销
 
-use crate::inbound::jsonrpc::{EthJsonRpcHandler, JsonRpcRequest};
+use crate::inbound::json_rpc::{EthJsonRpcHandler, EthereumRepository, JsonRpcRequest};
 use axum::{
     extract::State,
     http::{Method, StatusCode},
@@ -10,7 +11,6 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -18,14 +18,16 @@ use tower_http::{
 };
 use tracing::info;
 
-/// HTTP 服务器状态
+/// HTTP 服务器状态（完全静态分发，无 Arc 包装）
 #[derive(Clone)]
-pub struct ServerState {
-    pub rpc_handler: Arc<EthJsonRpcHandler>,
+pub struct ServerState<R> {
+    pub rpc_handler: EthJsonRpcHandler<R>,
 }
 
-/// 创建并配置 HTTP 服务器
-pub fn create_server(rpc_handler: Arc<EthJsonRpcHandler>) -> Router {
+/// 创建并配置 HTTP 服务器（完全静态分发版本）
+pub fn create_server<R: EthereumRepository + Clone + 'static>(
+    rpc_handler: EthJsonRpcHandler<R>,
+) -> Router {
     let state = ServerState { rpc_handler };
 
     // 为以太坊客户端配置 CORS
@@ -35,7 +37,7 @@ pub fn create_server(rpc_handler: Arc<EthJsonRpcHandler>) -> Router {
         .allow_headers(Any);
 
     Router::new()
-        .route("/", post(handle_rpc_request))
+        .route("/", post(handle_rpc_request::<R>))
         .route("/health", axum::routing::get(health_check))
         .layer(
             ServiceBuilder::new()
@@ -45,9 +47,9 @@ pub fn create_server(rpc_handler: Arc<EthJsonRpcHandler>) -> Router {
         .with_state(state)
 }
 
-/// RPC 请求主处理器
-async fn handle_rpc_request(
-    State(state): State<ServerState>,
+/// RPC 请求主处理器（完全静态分发，零成本抽象）
+async fn handle_rpc_request<R: EthereumRepository + Clone>(
+    State(state): State<ServerState<R>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Response {
     let response = state.rpc_handler.handle(request).await;
@@ -59,8 +61,12 @@ async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
 
-/// 运行服务器（优化配置）
-pub async fn run_server(host: &str, port: u16, rpc_handler: Arc<EthJsonRpcHandler>) -> anyhow::Result<()> {
+/// 运行服务器（优化配置，完全静态分发）
+pub async fn run_server<R: EthereumRepository + Clone + 'static>(
+    host: &str,
+    port: u16,
+    rpc_handler: EthJsonRpcHandler<R>,
+) -> anyhow::Result<()> {
     let app = create_server(rpc_handler);
     let addr = format!("{}:{}", host, port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;

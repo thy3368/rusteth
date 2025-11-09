@@ -1,2 +1,2 @@
-pub mod jsonrpc;
+pub mod json_rpc;
 pub mod server;

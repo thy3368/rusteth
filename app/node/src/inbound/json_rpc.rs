@@ -316,13 +316,14 @@ pub enum RepositoryError {
 // 用例层 - JSON-RPC 方法处理器
 // ============================================================================
 
-/// JSON-RPC 主处理器（遵循整洁架构）
-pub struct EthJsonRpcHandler {
-    repository: Arc<dyn EthereumRepository>,
+/// JSON-RPC 主处理器（遵循整洁架构，使用静态分发）
+#[derive(Clone)]
+pub struct EthJsonRpcHandler<R> {
+    repository: R,
 }
 
-impl EthJsonRpcHandler {
-    pub fn new(repository: Arc<dyn EthereumRepository>) -> Self {
+impl<R: EthereumRepository> EthJsonRpcHandler<R> {
+    pub fn new(repository: R) -> Self {
         Self { repository }
     }
 

@@ -1,10 +1,9 @@
 mod inbound;
 mod infrastructure;
 
-use inbound::jsonrpc::EthJsonRpcHandler;
+use inbound::json_rpc::EthJsonRpcHandler;
 use inbound::server::run_server;
 use infrastructure::mock_repository::MockEthereumRepository;
-use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -18,11 +17,11 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // 基础设施层 - 创建仓储
-    let repository = Arc::new(MockEthereumRepository::new());
+    // 基础设施层 - 创建仓储（完全静态分发）
+    let repository = MockEthereumRepository::new();
 
-    // 用例层 - 创建 RPC 处理器
-    let rpc_handler = Arc::new(EthJsonRpcHandler::new(repository));
+    // 用例层 - 创建 RPC 处理器（完全静态分发，零成本抽象）
+    let rpc_handler = EthJsonRpcHandler::new(repository);
 
     // 接口层 - 运行 HTTP 服务器
     let host = "127.0.0.1";
@@ -33,6 +32,7 @@ async fn main() -> anyhow::Result<()> {
     println!("🏥 健康检查：http://{}:{}/health", host, port);
     println!("\n💡 示例请求：");
     println!(r#"curl -X POST http://{}:{} -H "Content-Type: application/json" --data '{{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}}'"#, host, port);
+    println!("\n⚡ 性能优化：完全静态分发，零虚函数表开销");
 
     run_server(host, port, rpc_handler).await?;
 

@@ -2,30 +2,31 @@
 //!
 //! 这是一个简单的内存实现，用于测试和开发
 
-use crate::inbound::jsonrpc::{
+use crate::inbound::json_rpc::{
     Block, BlockId, CallRequest, EthereumRepository, FilterOptions, Log,
     RepositoryError, Transaction, TransactionReceipt,
 };
 use async_trait::async_trait;
 use ethereum_types::{Address, Bloom, H256, H64, U256, U64};
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
-/// 模拟的内存以太坊仓储
+/// 模拟的内存以太坊仓储（支持 Clone 用于静态分发）
+#[derive(Clone)]
 pub struct MockEthereumRepository {
-    blocks: RwLock<HashMap<U64, Block>>,
-    transactions: RwLock<HashMap<H256, Transaction>>,
-    receipts: RwLock<HashMap<H256, TransactionReceipt>>,
-    current_block_number: RwLock<U64>,
+    blocks: Arc<RwLock<HashMap<U64, Block>>>,
+    transactions: Arc<RwLock<HashMap<H256, Transaction>>>,
+    receipts: Arc<RwLock<HashMap<H256, TransactionReceipt>>>,
+    current_block_number: Arc<RwLock<U64>>,
 }
 
 impl MockEthereumRepository {
     pub fn new() -> Self {
         let repo = Self {
-            blocks: RwLock::new(HashMap::new()),
-            transactions: RwLock::new(HashMap::new()),
-            receipts: RwLock::new(HashMap::new()),
-            current_block_number: RwLock::new(U64::from(0)),
+            blocks: Arc::new(RwLock::new(HashMap::new())),
+            transactions: Arc::new(RwLock::new(HashMap::new())),
+            receipts: Arc::new(RwLock::new(HashMap::new())),
+            current_block_number: Arc::new(RwLock::new(U64::from(0))),
         };
 
         // 初始化创世区块
@@ -191,7 +192,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_repository() {
-        use crate::inbound::jsonrpc::BlockTag;
+        use crate::inbound::json_rpc::BlockTag;
 
         let repo = MockEthereumRepository::new();
 

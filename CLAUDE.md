@@ -6,6 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 严格按照eth相关标准并验收
 遇到问题不要绕过而是找到根本原因
 
+尽量采用表静类型
+尽量无状态不可变编程
+
 ## Project Overview
 
 RustEth is a high-performance Ethereum JSON-RPC server implementation based on EIP-1474, built with Rust following Clean
