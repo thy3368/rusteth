@@ -538,7 +538,7 @@ pub struct NodeMetadata {
 
 /// Repository 错误
 #[derive(Debug, Clone)]
-pub enum RepositoryError {
+pub enum ServiceError {
     /// 资源未找到
     NotFound(String),
     /// 无效参数
@@ -551,7 +551,7 @@ pub enum RepositoryError {
     Unhealthy,
 }
 
-impl fmt::Display for RepositoryError {
+impl fmt::Display for ServiceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotFound(msg) => write!(f, "Not found: {}", msg),
@@ -563,7 +563,7 @@ impl fmt::Display for RepositoryError {
     }
 }
 
-impl std::error::Error for RepositoryError {}
+impl std::error::Error for ServiceError {}
 
 // ================================================================================================
 // Repository Trait（端口接口）- 遵循 Clean Architecture
@@ -586,27 +586,27 @@ pub trait BeaconApi: Send + Sync {
     /// 获取创世信息
     ///
     /// 端点: GET /eth/v1/beacon/genesis
-    async fn get_genesis(&self) -> Result<GenesisInfo, RepositoryError>;
+    async fn get_genesis(&self) -> Result<GenesisInfo, ServiceError>;
 
     /// 获取节点版本
     ///
     /// 端点: GET /eth/v1/node/version
-    async fn get_node_version(&self) -> Result<NodeVersion, RepositoryError>;
+    async fn get_node_version(&self) -> Result<NodeVersion, ServiceError>;
 
     /// 获取节点健康状态
     ///
     /// 端点: GET /eth/v1/node/health
-    async fn get_node_health(&self) -> Result<HealthStatus, RepositoryError>;
+    async fn get_node_health(&self) -> Result<HealthStatus, ServiceError>;
 
     /// 获取同步状态
     ///
     /// 端点: GET /eth/v1/node/syncing
-    async fn get_syncing_status(&self) -> Result<SyncingStatus, RepositoryError>;
+    async fn get_syncing_status(&self) -> Result<SyncingStatus, ServiceError>;
 
     /// 获取节点身份信息
     ///
     /// 端点: GET /eth/v1/node/identity
-    async fn get_node_identity(&self) -> Result<NodeIdentity, RepositoryError>;
+    async fn get_node_identity(&self) -> Result<NodeIdentity, ServiceError>;
 
     // ============================================================================================
     // 2. 配置查询 (Configuration)
@@ -615,12 +615,12 @@ pub trait BeaconApi: Send + Sync {
     /// 获取链规范参数
     ///
     /// 端点: GET /eth/v1/config/spec
-    async fn get_spec(&self) -> Result<ChainSpec, RepositoryError>;
+    async fn get_spec(&self) -> Result<ChainSpec, ServiceError>;
 
     /// 获取分叉时间表
     ///
     /// 端点: GET /eth/v1/config/fork_schedule
-    async fn get_fork_schedule(&self) -> Result<ForkSchedule, RepositoryError>;
+    async fn get_fork_schedule(&self) -> Result<ForkSchedule, ServiceError>;
 
     // ============================================================================================
     // 3. 区块头查询 (Block Headers)
@@ -629,7 +629,7 @@ pub trait BeaconApi: Send + Sync {
     /// 获取当前链头区块头
     ///
     /// 端点: GET /eth/v1/beacon/headers/head
-    async fn get_block_header(&self, block_id: BlockId) -> Result<BlockHeaderResponse, RepositoryError>;
+    async fn get_block_header(&self, block_id: BlockId) -> Result<BlockHeaderResponse, ServiceError>;
 
     /// 获取区块头列表
     ///
@@ -638,7 +638,7 @@ pub trait BeaconApi: Send + Sync {
         &self,
         slot: Option<Slot>,
         parent_root: Option<Root>,
-    ) -> Result<Vec<BlockHeaderResponse>, RepositoryError>;
+    ) -> Result<Vec<BlockHeaderResponse>, ServiceError>;
 
     // ============================================================================================
     // 4. 区块查询 (Blocks)
@@ -647,22 +647,22 @@ pub trait BeaconApi: Send + Sync {
     /// 获取信标区块
     ///
     /// 端点: GET /eth/v2/beacon/blocks/{block_id}
-    async fn get_block(&self, block_id: BlockId) -> Result<SignedBeaconBlock, RepositoryError>;
+    async fn get_block(&self, block_id: BlockId) -> Result<SignedBeaconBlock, ServiceError>;
 
     /// 获取区块根哈希
     ///
     /// 端点: GET /eth/v1/beacon/blocks/{block_id}/root
-    async fn get_block_root(&self, block_id: BlockId) -> Result<Root, RepositoryError>;
+    async fn get_block_root(&self, block_id: BlockId) -> Result<Root, ServiceError>;
 
     /// 获取区块中的证明
     ///
     /// 端点: GET /eth/v1/beacon/blocks/{block_id}/attestations
-    async fn get_block_attestations(&self, block_id: BlockId) -> Result<Vec<Attestation>, RepositoryError>;
+    async fn get_block_attestations(&self, block_id: BlockId) -> Result<Vec<Attestation>, ServiceError>;
 
     /// 发布信标区块
     ///
     /// 端点: POST /eth/v1/beacon/blocks
-    async fn publish_block(&self, block: SignedBeaconBlock) -> Result<(), RepositoryError>;
+    async fn publish_block(&self, block: SignedBeaconBlock) -> Result<(), ServiceError>;
 
     // ============================================================================================
     // 5. 状态查询 (States)
@@ -671,17 +671,17 @@ pub trait BeaconApi: Send + Sync {
     /// 获取状态根哈希
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/root
-    async fn get_state_root(&self, state_id: StateId) -> Result<Root, RepositoryError>;
+    async fn get_state_root(&self, state_id: StateId) -> Result<Root, ServiceError>;
 
     /// 获取分叉信息
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/fork
-    async fn get_state_fork(&self, state_id: StateId) -> Result<Fork, RepositoryError>;
+    async fn get_state_fork(&self, state_id: StateId) -> Result<Fork, ServiceError>;
 
     /// 获取最终性检查点
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/finality_checkpoints
-    async fn get_finality_checkpoints(&self, state_id: StateId) -> Result<FinalityCheckpoints, RepositoryError>;
+    async fn get_finality_checkpoints(&self, state_id: StateId) -> Result<FinalityCheckpoints, ServiceError>;
 
     // ============================================================================================
     // 6. 验证者查询 (Validators)
@@ -695,7 +695,7 @@ pub trait BeaconApi: Send + Sync {
         state_id: StateId,
         ids: Option<Vec<ValidatorId>>,
         statuses: Option<Vec<ValidatorStatus>>,
-    ) -> Result<Vec<ValidatorInfo>, RepositoryError>;
+    ) -> Result<Vec<ValidatorInfo>, ServiceError>;
 
     /// 获取单个验证者信息
     ///
@@ -704,7 +704,7 @@ pub trait BeaconApi: Send + Sync {
         &self,
         state_id: StateId,
         validator_id: ValidatorId,
-    ) -> Result<ValidatorInfo, RepositoryError>;
+    ) -> Result<ValidatorInfo, ServiceError>;
 
     /// 获取验证者余额列表
     ///
@@ -713,7 +713,7 @@ pub trait BeaconApi: Send + Sync {
         &self,
         state_id: StateId,
         ids: Option<Vec<ValidatorId>>,
-    ) -> Result<Vec<ValidatorBalance>, RepositoryError>;
+    ) -> Result<Vec<ValidatorBalance>, ServiceError>;
 
     /// 批量查询验证者（POST）
     ///
@@ -723,7 +723,7 @@ pub trait BeaconApi: Send + Sync {
         state_id: StateId,
         ids: Vec<ValidatorId>,
         statuses: Option<Vec<ValidatorStatus>>,
-    ) -> Result<Vec<ValidatorInfo>, RepositoryError>;
+    ) -> Result<Vec<ValidatorInfo>, ServiceError>;
 
     // ============================================================================================
     // 7. 委员会查询 (Committees)
@@ -738,7 +738,7 @@ pub trait BeaconApi: Send + Sync {
         epoch: Option<Epoch>,
         index: Option<String>,
         slot: Option<Slot>,
-    ) -> Result<Vec<Committee>, RepositoryError>;
+    ) -> Result<Vec<Committee>, ServiceError>;
 
     /// 获取同步委员会
     ///
@@ -747,7 +747,7 @@ pub trait BeaconApi: Send + Sync {
         &self,
         state_id: StateId,
         epoch: Option<Epoch>,
-    ) -> Result<SyncCommittee, RepositoryError>;
+    ) -> Result<SyncCommittee, ServiceError>;
 
     // ============================================================================================
     // 8. 交易池查询 (Pool)
@@ -760,22 +760,22 @@ pub trait BeaconApi: Send + Sync {
         &self,
         slot: Option<Slot>,
         committee_index: Option<String>,
-    ) -> Result<Vec<Attestation>, RepositoryError>;
+    ) -> Result<Vec<Attestation>, ServiceError>;
 
     /// 提交证明
     ///
     /// 端点: POST /eth/v1/beacon/pool/attestations
-    async fn submit_pool_attestations(&self, attestations: Vec<Attestation>) -> Result<(), RepositoryError>;
+    async fn submit_pool_attestations(&self, attestations: Vec<Attestation>) -> Result<(), ServiceError>;
 
     /// 获取自愿退出
     ///
     /// 端点: GET /eth/v1/beacon/pool/voluntary_exits
-    async fn get_pool_voluntary_exits(&self) -> Result<Vec<SignedVoluntaryExit>, RepositoryError>;
+    async fn get_pool_voluntary_exits(&self) -> Result<Vec<SignedVoluntaryExit>, ServiceError>;
 
     /// 提交自愿退出
     ///
     /// 端点: POST /eth/v1/beacon/pool/voluntary_exits
-    async fn submit_pool_voluntary_exit(&self, exit: SignedVoluntaryExit) -> Result<(), RepositoryError>;
+    async fn submit_pool_voluntary_exit(&self, exit: SignedVoluntaryExit) -> Result<(), ServiceError>;
 }
 
 // ================================================================================================

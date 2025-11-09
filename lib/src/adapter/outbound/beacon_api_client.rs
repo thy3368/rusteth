@@ -8,39 +8,14 @@
 use crate::domain::service::beacon_api::{
     Attestation, BeaconApi, BlockHeaderResponse, BlockId, ChainSpec, Committee, Epoch,
     FinalityCheckpoints, Fork, ForkSchedule, GenesisInfo, HealthStatus, NodeIdentity, NodeVersion,
-    RepositoryError, Root, SignedBeaconBlock, SignedVoluntaryExit, Slot, StateId, SyncCommittee,
+    ServiceError, Root, SignedBeaconBlock, SignedVoluntaryExit, Slot, StateId, SyncCommittee,
     SyncingStatus, ValidatorBalance, ValidatorId, ValidatorInfo, ValidatorStatus,
 };
+use crate::adapter::beacon_api_types::{ApiError, ApiResponse, PostValidatorsRequest, RootResponse};
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-
-// ================================================================================================
-// API 响应包装类型 (Response Wrappers)
-// ================================================================================================
-
-/// 标准 Beacon API 响应格式
-///
-/// 所有成功的 Beacon API 响应都遵循此格式：
-/// ```json
-/// {
-///   "data": <实际数据>
-/// }
-/// ```
-#[derive(Debug, Deserialize, Serialize)]
-struct ApiResponse<T> {
-    data: T,
-}
-
-/// API 错误响应格式
-#[derive(Debug, Deserialize, Serialize)]
-struct ApiError {
-    code: u16,
-    message: String,
-    #[serde(default)]
-    stacktraces: Vec<String>,
-}
 
 // ================================================================================================
 // BeaconApiClient 结构体
@@ -75,13 +50,13 @@ impl BeaconApiClient {
     /// - 启用连接池复用
     /// - 设置合理的超时时间（30秒）
     /// - 启用 gzip 压缩
-    pub fn new(base_url: impl Into<String>) -> Result<Self, RepositoryError> {
+    pub fn new(base_url: impl Into<String>) -> Result<Self, ServiceError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .pool_max_idle_per_host(10) // 连接池优化
             .gzip(true) // 启用 gzip 压缩
             .build()
-            .map_err(|e| RepositoryError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| ServiceError::Internal(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             client,
@@ -126,7 +101,7 @@ impl BeaconApiClient {
     }
 
     /// 辅助方法：执行 GET 请求并解析响应
-    async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, RepositoryError> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, ServiceError> {
         let url = self.build_url(path);
 
         let response = self
@@ -134,7 +109,7 @@ impl BeaconApiClient {
             .get(&url)
             .send()
             .await
-            .map_err(|e| RepositoryError::Internal(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| ServiceError::Internal(format!("HTTP request failed: {}", e)))?;
 
         let status = response.status();
 
@@ -145,28 +120,28 @@ impl BeaconApiClient {
                 let api_response: ApiResponse<T> = response
                     .json()
                     .await
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to parse response: {}", e)))?;
+                    .map_err(|e| ServiceError::Internal(format!("Failed to parse response: {}", e)))?;
                 Ok(api_response.data)
             }
             StatusCode::NOT_FOUND => {
                 // 404: 资源未找到
-                Err(RepositoryError::NotFound(format!("Resource not found: {}", url)))
+                Err(ServiceError::NotFound(format!("Resource not found: {}", url)))
             }
             StatusCode::BAD_REQUEST => {
                 // 400: 请求参数错误
                 let error: ApiError = response
                     .json()
                     .await
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to parse error: {}", e)))?;
-                Err(RepositoryError::InvalidParameter(error.message))
+                    .map_err(|e| ServiceError::Internal(format!("Failed to parse error: {}", e)))?;
+                Err(ServiceError::InvalidParameter(error.message))
             }
             StatusCode::SERVICE_UNAVAILABLE => {
                 // 503: 节点不健康
-                Err(RepositoryError::Unhealthy)
+                Err(ServiceError::Unhealthy)
             }
             StatusCode::PARTIAL_CONTENT => {
                 // 206: 节点正在同步
-                Err(RepositoryError::NotSynced)
+                Err(ServiceError::NotSynced)
             }
             _ => {
                 // 其他错误
@@ -174,7 +149,7 @@ impl BeaconApiClient {
                     .text()
                     .await
                     .unwrap_or_else(|_| "Failed to read response body".to_string());
-                Err(RepositoryError::Internal(format!(
+                Err(ServiceError::Internal(format!(
                     "Unexpected status {}: {}",
                     status, body
                 )))
@@ -187,7 +162,7 @@ impl BeaconApiClient {
         &self,
         path: &str,
         body: &B,
-    ) -> Result<T, RepositoryError> {
+    ) -> Result<T, ServiceError> {
         let url = self.build_url(path);
 
         let response = self
@@ -196,7 +171,7 @@ impl BeaconApiClient {
             .json(body)
             .send()
             .await
-            .map_err(|e| RepositoryError::Internal(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| ServiceError::Internal(format!("HTTP request failed: {}", e)))?;
 
         let status = response.status();
 
@@ -205,22 +180,22 @@ impl BeaconApiClient {
                 let api_response: ApiResponse<T> = response
                     .json()
                     .await
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to parse response: {}", e)))?;
+                    .map_err(|e| ServiceError::Internal(format!("Failed to parse response: {}", e)))?;
                 Ok(api_response.data)
             }
             StatusCode::BAD_REQUEST => {
                 let error: ApiError = response
                     .json()
                     .await
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to parse error: {}", e)))?;
-                Err(RepositoryError::InvalidParameter(error.message))
+                    .map_err(|e| ServiceError::Internal(format!("Failed to parse error: {}", e)))?;
+                Err(ServiceError::InvalidParameter(error.message))
             }
             _ => {
                 let body_text = response
                     .text()
                     .await
                     .unwrap_or_else(|_| "Failed to read response body".to_string());
-                Err(RepositoryError::Internal(format!(
+                Err(ServiceError::Internal(format!(
                     "Unexpected status {}: {}",
                     status, body_text
                 )))
@@ -229,7 +204,7 @@ impl BeaconApiClient {
     }
 
     /// 辅助方法：执行 POST 请求（无响应体）
-    async fn post_empty<B: Serialize>(&self, path: &str, body: &B) -> Result<(), RepositoryError> {
+    async fn post_empty<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ServiceError> {
         let url = self.build_url(path);
 
         let response = self
@@ -238,7 +213,7 @@ impl BeaconApiClient {
             .json(body)
             .send()
             .await
-            .map_err(|e| RepositoryError::Internal(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| ServiceError::Internal(format!("HTTP request failed: {}", e)))?;
 
         let status = response.status();
 
@@ -248,15 +223,15 @@ impl BeaconApiClient {
                 let error: ApiError = response
                     .json()
                     .await
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to parse error: {}", e)))?;
-                Err(RepositoryError::InvalidParameter(error.message))
+                    .map_err(|e| ServiceError::Internal(format!("Failed to parse error: {}", e)))?;
+                Err(ServiceError::InvalidParameter(error.message))
             }
             _ => {
                 let body_text = response
                     .text()
                     .await
                     .unwrap_or_else(|_| "Failed to read response body".to_string());
-                Err(RepositoryError::Internal(format!(
+                Err(ServiceError::Internal(format!(
                     "Unexpected status {}: {}",
                     status, body_text
                 )))
@@ -278,14 +253,14 @@ impl BeaconApi for BeaconApiClient {
     /// 获取创世信息
     ///
     /// 端点: GET /eth/v1/beacon/genesis
-    async fn get_genesis(&self) -> Result<GenesisInfo, RepositoryError> {
+    async fn get_genesis(&self) -> Result<GenesisInfo, ServiceError> {
         self.get("/eth/v1/beacon/genesis").await
     }
 
     /// 获取节点版本
     ///
     /// 端点: GET /eth/v1/node/version
-    async fn get_node_version(&self) -> Result<NodeVersion, RepositoryError> {
+    async fn get_node_version(&self) -> Result<NodeVersion, ServiceError> {
         self.get("/eth/v1/node/version").await
     }
 
@@ -298,7 +273,7 @@ impl BeaconApi for BeaconApiClient {
     /// - 206: Syncing
     /// - 503: Unhealthy
     /// - 404: 端点不支持（返回 NotFound 错误）
-    async fn get_node_health(&self) -> Result<HealthStatus, RepositoryError> {
+    async fn get_node_health(&self) -> Result<HealthStatus, ServiceError> {
         let url = self.build_url("/eth/v1/node/health");
 
         let response = self
@@ -306,7 +281,7 @@ impl BeaconApi for BeaconApiClient {
             .get(&url)
             .send()
             .await
-            .map_err(|e| RepositoryError::Internal(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| ServiceError::Internal(format!("HTTP request failed: {}", e)))?;
 
         match response.status() {
             StatusCode::OK => Ok(HealthStatus::Healthy),
@@ -314,11 +289,11 @@ impl BeaconApi for BeaconApiClient {
             StatusCode::SERVICE_UNAVAILABLE => Ok(HealthStatus::Unhealthy),
             StatusCode::NOT_FOUND => {
                 // 端点不支持（某些公开节点可能不提供此端点）
-                Err(RepositoryError::NotFound(
+                Err(ServiceError::NotFound(
                     "Health endpoint not supported by this node".to_string()
                 ))
             }
-            status => Err(RepositoryError::Internal(format!(
+            status => Err(ServiceError::Internal(format!(
                 "Unexpected health status: {}",
                 status
             ))),
@@ -328,14 +303,14 @@ impl BeaconApi for BeaconApiClient {
     /// 获取同步状态
     ///
     /// 端点: GET /eth/v1/node/syncing
-    async fn get_syncing_status(&self) -> Result<SyncingStatus, RepositoryError> {
+    async fn get_syncing_status(&self) -> Result<SyncingStatus, ServiceError> {
         self.get("/eth/v1/node/syncing").await
     }
 
     /// 获取节点身份信息
     ///
     /// 端点: GET /eth/v1/node/identity
-    async fn get_node_identity(&self) -> Result<NodeIdentity, RepositoryError> {
+    async fn get_node_identity(&self) -> Result<NodeIdentity, ServiceError> {
         self.get("/eth/v1/node/identity").await
     }
 
@@ -346,14 +321,14 @@ impl BeaconApi for BeaconApiClient {
     /// 获取链规范参数
     ///
     /// 端点: GET /eth/v1/config/spec
-    async fn get_spec(&self) -> Result<ChainSpec, RepositoryError> {
+    async fn get_spec(&self) -> Result<ChainSpec, ServiceError> {
         self.get("/eth/v1/config/spec").await
     }
 
     /// 获取分叉时间表
     ///
     /// 端点: GET /eth/v1/config/fork_schedule
-    async fn get_fork_schedule(&self) -> Result<ForkSchedule, RepositoryError> {
+    async fn get_fork_schedule(&self) -> Result<ForkSchedule, ServiceError> {
         self.get("/eth/v1/config/fork_schedule").await
     }
 
@@ -364,7 +339,7 @@ impl BeaconApi for BeaconApiClient {
     /// 获取区块头
     ///
     /// 端点: GET /eth/v1/beacon/headers/{block_id}
-    async fn get_block_header(&self, block_id: BlockId) -> Result<BlockHeaderResponse, RepositoryError> {
+    async fn get_block_header(&self, block_id: BlockId) -> Result<BlockHeaderResponse, ServiceError> {
         let block_path = self.block_id_to_path(&block_id);
         let path = format!("/eth/v1/beacon/headers/{}", block_path);
         self.get(&path).await
@@ -377,7 +352,7 @@ impl BeaconApi for BeaconApiClient {
         &self,
         slot: Option<Slot>,
         parent_root: Option<Root>,
-    ) -> Result<Vec<BlockHeaderResponse>, RepositoryError> {
+    ) -> Result<Vec<BlockHeaderResponse>, ServiceError> {
         let mut path = "/eth/v1/beacon/headers".to_string();
         let mut params = Vec::new();
 
@@ -403,7 +378,7 @@ impl BeaconApi for BeaconApiClient {
     /// 获取信标区块
     ///
     /// 端点: GET /eth/v2/beacon/blocks/{block_id}
-    async fn get_block(&self, block_id: BlockId) -> Result<SignedBeaconBlock, RepositoryError> {
+    async fn get_block(&self, block_id: BlockId) -> Result<SignedBeaconBlock, ServiceError> {
         let block_path = self.block_id_to_path(&block_id);
         let path = format!("/eth/v2/beacon/blocks/{}", block_path);
         self.get(&path).await
@@ -412,14 +387,9 @@ impl BeaconApi for BeaconApiClient {
     /// 获取区块根哈希
     ///
     /// 端点: GET /eth/v1/beacon/blocks/{block_id}/root
-    async fn get_block_root(&self, block_id: BlockId) -> Result<Root, RepositoryError> {
+    async fn get_block_root(&self, block_id: BlockId) -> Result<Root, ServiceError> {
         let block_path = self.block_id_to_path(&block_id);
         let path = format!("/eth/v1/beacon/blocks/{}/root", block_path);
-
-        #[derive(Deserialize)]
-        struct RootResponse {
-            root: Root,
-        }
 
         let response: RootResponse = self.get(&path).await?;
         Ok(response.root)
@@ -428,7 +398,7 @@ impl BeaconApi for BeaconApiClient {
     /// 获取区块中的证明
     ///
     /// 端点: GET /eth/v1/beacon/blocks/{block_id}/attestations
-    async fn get_block_attestations(&self, block_id: BlockId) -> Result<Vec<Attestation>, RepositoryError> {
+    async fn get_block_attestations(&self, block_id: BlockId) -> Result<Vec<Attestation>, ServiceError> {
         let block_path = self.block_id_to_path(&block_id);
         let path = format!("/eth/v1/beacon/blocks/{}/attestations", block_path);
         self.get(&path).await
@@ -437,7 +407,7 @@ impl BeaconApi for BeaconApiClient {
     /// 发布信标区块
     ///
     /// 端点: POST /eth/v1/beacon/blocks
-    async fn publish_block(&self, block: SignedBeaconBlock) -> Result<(), RepositoryError> {
+    async fn publish_block(&self, block: SignedBeaconBlock) -> Result<(), ServiceError> {
         self.post_empty("/eth/v1/beacon/blocks", &block).await
     }
 
@@ -448,14 +418,9 @@ impl BeaconApi for BeaconApiClient {
     /// 获取状态根哈希
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/root
-    async fn get_state_root(&self, state_id: StateId) -> Result<Root, RepositoryError> {
+    async fn get_state_root(&self, state_id: StateId) -> Result<Root, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let path = format!("/eth/v1/beacon/states/{}/root", state_path);
-
-        #[derive(Deserialize)]
-        struct RootResponse {
-            root: Root,
-        }
 
         let response: RootResponse = self.get(&path).await?;
         Ok(response.root)
@@ -464,7 +429,7 @@ impl BeaconApi for BeaconApiClient {
     /// 获取分叉信息
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/fork
-    async fn get_state_fork(&self, state_id: StateId) -> Result<Fork, RepositoryError> {
+    async fn get_state_fork(&self, state_id: StateId) -> Result<Fork, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let path = format!("/eth/v1/beacon/states/{}/fork", state_path);
         self.get(&path).await
@@ -473,7 +438,7 @@ impl BeaconApi for BeaconApiClient {
     /// 获取最终性检查点
     ///
     /// 端点: GET /eth/v1/beacon/states/{state_id}/finality_checkpoints
-    async fn get_finality_checkpoints(&self, state_id: StateId) -> Result<FinalityCheckpoints, RepositoryError> {
+    async fn get_finality_checkpoints(&self, state_id: StateId) -> Result<FinalityCheckpoints, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let path = format!("/eth/v1/beacon/states/{}/finality_checkpoints", state_path);
         self.get(&path).await
@@ -491,7 +456,7 @@ impl BeaconApi for BeaconApiClient {
         state_id: StateId,
         ids: Option<Vec<ValidatorId>>,
         statuses: Option<Vec<ValidatorStatus>>,
-    ) -> Result<Vec<ValidatorInfo>, RepositoryError> {
+    ) -> Result<Vec<ValidatorInfo>, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let mut path = format!("/eth/v1/beacon/states/{}/validators", state_path);
         let mut params = Vec::new();
@@ -506,7 +471,7 @@ impl BeaconApi for BeaconApiClient {
         if let Some(status_list) = statuses {
             for status in status_list {
                 let status_str = serde_json::to_string(&status)
-                    .map_err(|e| RepositoryError::Internal(format!("Failed to serialize status: {}", e)))?
+                    .map_err(|e| ServiceError::Internal(format!("Failed to serialize status: {}", e)))?
                     .trim_matches('"')
                     .to_string();
                 params.push(format!("status={}", status_str));
@@ -528,7 +493,7 @@ impl BeaconApi for BeaconApiClient {
         &self,
         state_id: StateId,
         validator_id: ValidatorId,
-    ) -> Result<ValidatorInfo, RepositoryError> {
+    ) -> Result<ValidatorInfo, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let validator_path = self.validator_id_to_path(&validator_id);
         let path = format!(
@@ -545,7 +510,7 @@ impl BeaconApi for BeaconApiClient {
         &self,
         state_id: StateId,
         ids: Option<Vec<ValidatorId>>,
-    ) -> Result<Vec<ValidatorBalance>, RepositoryError> {
+    ) -> Result<Vec<ValidatorBalance>, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let mut path = format!("/eth/v1/beacon/states/{}/validator_balances", state_path);
 
@@ -572,19 +537,12 @@ impl BeaconApi for BeaconApiClient {
         state_id: StateId,
         ids: Vec<ValidatorId>,
         statuses: Option<Vec<ValidatorStatus>>,
-    ) -> Result<Vec<ValidatorInfo>, RepositoryError> {
+    ) -> Result<Vec<ValidatorInfo>, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let path = format!("/eth/v1/beacon/states/{}/validators", state_path);
 
-        #[derive(Serialize)]
-        struct ValidatorsRequest {
-            ids: Vec<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            statuses: Option<Vec<ValidatorStatus>>,
-        }
-
         let ids_str: Vec<String> = ids.iter().map(|id| self.validator_id_to_path(id)).collect();
-        let request = ValidatorsRequest {
+        let request = PostValidatorsRequest {
             ids: ids_str,
             statuses,
         };
@@ -605,7 +563,7 @@ impl BeaconApi for BeaconApiClient {
         epoch: Option<Epoch>,
         index: Option<String>,
         slot: Option<Slot>,
-    ) -> Result<Vec<Committee>, RepositoryError> {
+    ) -> Result<Vec<Committee>, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let mut path = format!("/eth/v1/beacon/states/{}/committees", state_path);
         let mut params = Vec::new();
@@ -635,7 +593,7 @@ impl BeaconApi for BeaconApiClient {
         &self,
         state_id: StateId,
         epoch: Option<Epoch>,
-    ) -> Result<SyncCommittee, RepositoryError> {
+    ) -> Result<SyncCommittee, ServiceError> {
         let state_path = self.state_id_to_path(&state_id);
         let mut path = format!("/eth/v1/beacon/states/{}/sync_committees", state_path);
 
@@ -657,7 +615,7 @@ impl BeaconApi for BeaconApiClient {
         &self,
         slot: Option<Slot>,
         committee_index: Option<String>,
-    ) -> Result<Vec<Attestation>, RepositoryError> {
+    ) -> Result<Vec<Attestation>, ServiceError> {
         let mut path = "/eth/v1/beacon/pool/attestations".to_string();
         let mut params = Vec::new();
 
@@ -679,7 +637,7 @@ impl BeaconApi for BeaconApiClient {
     /// 提交证明
     ///
     /// 端点: POST /eth/v1/beacon/pool/attestations
-    async fn submit_pool_attestations(&self, attestations: Vec<Attestation>) -> Result<(), RepositoryError> {
+    async fn submit_pool_attestations(&self, attestations: Vec<Attestation>) -> Result<(), ServiceError> {
         self.post_empty("/eth/v1/beacon/pool/attestations", &attestations)
             .await
     }
@@ -687,14 +645,14 @@ impl BeaconApi for BeaconApiClient {
     /// 获取自愿退出
     ///
     /// 端点: GET /eth/v1/beacon/pool/voluntary_exits
-    async fn get_pool_voluntary_exits(&self) -> Result<Vec<SignedVoluntaryExit>, RepositoryError> {
+    async fn get_pool_voluntary_exits(&self) -> Result<Vec<SignedVoluntaryExit>, ServiceError> {
         self.get("/eth/v1/beacon/pool/voluntary_exits").await
     }
 
     /// 提交自愿退出
     ///
     /// 端点: POST /eth/v1/beacon/pool/voluntary_exits
-    async fn submit_pool_voluntary_exit(&self, exit: SignedVoluntaryExit) -> Result<(), RepositoryError> {
+    async fn submit_pool_voluntary_exit(&self, exit: SignedVoluntaryExit) -> Result<(), ServiceError> {
         self.post_empty("/eth/v1/beacon/pool/voluntary_exits", &exit)
             .await
     }
