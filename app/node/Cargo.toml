@@ -3,6 +3,10 @@ name = "node"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "node"
+path = "src/lib.rs"
+
 [dependencies]
 # Async runtime - optimized for low latency
 tokio = { version = "1.35", features = ["full", "tracing"] }
@@ -28,6 +32,15 @@ anyhow = "1.0"
 # Tracing and metrics
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# P2P networking - Ethereum node discovery
+discv5 = "0.10.2"
+enr = "0.12"
+libp2p = { version = "0.54", features = ["tcp", "dns", "noise", "yamux", "gossipsub", "kad", "identify"] }
+libp2p-identity = "0.2"
+rlp = "0.5"
+k256 = { version = "0.13", features = ["ecdsa"] }
+rand = "0.8"
 
 [profile.release]
 opt-level = 3
