@@ -258,3 +258,7 @@ All method implementations are in `EthJsonRpcHandler::execute_method` (line 280-
 - [EIP-1474: Remote procedure call specification](https://eips.ethereum.org/EIPS/eip-1474)
 - [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification)
 - Clean Architecture principles from global CLAUDE.md apply to this codebase
+
+## 学习资料
+
+https://ethereum.org/developers/docs/
