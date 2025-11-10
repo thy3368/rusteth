@@ -25,6 +25,10 @@ serde_json = "1.0"
 ethereum-types = "0.14"
 hex = "0.4"
 
+# EVM execution - revm for high-performance EVM simulation
+revm = { version = "14.0", features = ["std", "serde"] }
+alloy-primitives = "0.8"
+
 # Error handling
 thiserror = "1.0"
 anyhow = "1.0"
