@@ -161,6 +161,9 @@ impl EthereumService for EthereumServiceImpl {
     }
 
     async fn send_raw_transaction(&self, raw_tx: Vec<u8>) -> Result<H256, ServiceError> {
+        // todo 原始交易
+        // 1  池中没有，则验证交易并通过放到放池子；从池子取交易多少笔交易并生成block;  原子写（block header,交易,凭证，账号新状态）
+        //
         // 模拟：对原始交易数据进行哈希
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -238,7 +241,10 @@ mod tests {
         assert_eq!(block_num, U64::zero());
 
         // 测试创世区块
-        let genesis = service.get_block_by_number(U64::zero(), false).await.unwrap();
+        let genesis = service
+            .get_block_by_number(U64::zero(), false)
+            .await
+            .unwrap();
         assert!(genesis.is_some());
         assert_eq!(genesis.unwrap().number, U64::zero());
 
