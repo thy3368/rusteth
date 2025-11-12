@@ -7,19 +7,21 @@
 //! - EIP-1559 费用历史测试
 
 use node::inbound::json_rpc_trait::EthApiExecutor;
-use node::inbound::json_rpc::{
-    BlockId, BlockTag, CallRequest, EthJsonRpcHandler, SendTransactionRequest,
-};
+
 use node::infrastructure::mock_repository::MockEthereumRepository;
+use node::service::ethereum_service_impl::EthereumServiceImpl;
 use ethereum_types::{Address, U256, U64};
+use node::inbound::json_rpc::EthJsonRpcHandler;
+use node::service::types::{BlockId, BlockTag, CallRequest, SendTransactionRequest};
 
 #[cfg(test)]
 mod eth_api_client_test;
 
 /// 创建测试用的 Handler
-fn create_test_handler() -> EthJsonRpcHandler<MockEthereumRepository> {
+fn create_test_handler() -> EthJsonRpcHandler<EthereumServiceImpl> {
     let repository = MockEthereumRepository::new();
-    EthJsonRpcHandler::new(repository)
+    let service = EthereumServiceImpl::new(repository);
+    EthJsonRpcHandler::new(service)
 }
 
 // ============================================================================

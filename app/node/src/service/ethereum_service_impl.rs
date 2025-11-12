@@ -1,23 +1,27 @@
+use super::ethereum_service::{EthereumService, ServiceError};
+use super::types::{
+    Block, BlockId, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest,
+    Transaction, TransactionReceipt,
+};
 use crate::infrastructure::mock_repository::MockEthereumRepository;
-use crate::service::ethereum_service::{EthereumService, ServiceError};
 use async_trait::async_trait;
 use ethereum_types::{Address, H256, U256, U64};
-use crate::service::types::{Block, BlockId, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest, Transaction, TransactionReceipt};
 
+#[derive(Clone)]
 pub struct EthereumServiceImpl {
     pub repo: MockEthereumRepository,
 }
 
 impl EthereumServiceImpl {
-    pub fn new(repo: MockEthereumRepository) -> _ {
-        todo!()
+    pub fn new(repo: MockEthereumRepository) -> Self {
+        Self { repo }
     }
 }
 
 #[async_trait]
 impl EthereumService for EthereumServiceImpl {
     async fn get_block_number(&self) -> Result<U64, ServiceError> {
-        Ok(*self.current_block_number.read().unwrap())
+        Ok(*self.repo.current_block_number.read().unwrap())
     }
 
     async fn get_block_by_number(
@@ -25,7 +29,7 @@ impl EthereumService for EthereumServiceImpl {
         number: U64,
         _full_tx: bool,
     ) -> Result<Option<Block>, ServiceError> {
-        Ok(repo.blocks.read().unwrap().get(&number).cloned())
+        Ok(self.repo.blocks.read().unwrap().get(&number).cloned())
     }
 
     async fn get_block_by_hash(
@@ -34,6 +38,7 @@ impl EthereumService for EthereumServiceImpl {
         _full_tx: bool,
     ) -> Result<Option<Block>, ServiceError> {
         Ok(self
+            .repo
             .blocks
             .read()
             .unwrap()
@@ -46,14 +51,14 @@ impl EthereumService for EthereumServiceImpl {
         &self,
         hash: H256,
     ) -> Result<Option<Transaction>, ServiceError> {
-        Ok(self.transactions.read().unwrap().get(&hash).cloned())
+        Ok(self.repo.transactions.read().unwrap().get(&hash).cloned())
     }
 
     async fn get_transaction_receipt(
         &self,
         hash: H256,
     ) -> Result<Option<TransactionReceipt>, ServiceError> {
-        Ok(self.receipts.read().unwrap().get(&hash).cloned())
+        Ok(self.repo.receipts.read().unwrap().get(&hash).cloned())
     }
 
     async fn get_balance(&self, _address: Address, _block: BlockId) -> Result<U256, ServiceError> {
@@ -151,7 +156,7 @@ impl EthereumService for EthereumServiceImpl {
             },
         };
 
-        self.add_transaction(tx);
+        self.repo.add_transaction(tx);
         Ok(tx_hash)
     }
 
@@ -223,21 +228,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_repository() {
-        use crate::inbound::json_rpc::BlockTag;
+        use crate::service::types::BlockTag;
 
-        let repo = EthereumServiceImpl::new();
+        let mock_repo = MockEthereumRepository::new();
+        let service = EthereumServiceImpl::new(mock_repo);
 
         // 测试区块号
-        let block_num = repo.get_block_number().await.unwrap();
+        let block_num = service.get_block_number().await.unwrap();
         assert_eq!(block_num, U64::zero());
 
         // 测试创世区块
-        let genesis = repo.get_block_by_number(U64::zero(), false).await.unwrap();
+        let genesis = service.get_block_by_number(U64::zero(), false).await.unwrap();
         assert!(genesis.is_some());
         assert_eq!(genesis.unwrap().number, U64::zero());
 
         // 测试余额
-        let balance = repo
+        let balance = service
             .get_balance(Address::zero(), BlockId::Tag(BlockTag::Latest))
             .await
             .unwrap();

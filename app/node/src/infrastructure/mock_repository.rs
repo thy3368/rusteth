@@ -10,10 +10,10 @@ use crate::service::types::{Block, Transaction, TransactionReceipt};
 /// 模拟的内存以太坊仓储（支持 Clone 用于静态分发）
 #[derive(Clone)]
 pub struct MockEthereumRepository {
-    blocks: Arc<RwLock<HashMap<U64, Block>>>,
-    transactions: Arc<RwLock<HashMap<H256, Transaction>>>,
-    receipts: Arc<RwLock<HashMap<H256, TransactionReceipt>>>,
-    current_block_number: Arc<RwLock<U64>>,
+    pub(crate) blocks: Arc<RwLock<HashMap<U64, Block>>>,
+    pub(crate) transactions: Arc<RwLock<HashMap<H256, Transaction>>>,
+    pub(crate) receipts: Arc<RwLock<HashMap<H256, TransactionReceipt>>>,
+    pub(crate) current_block_number: Arc<RwLock<U64>>,
 }
 
 impl MockEthereumRepository {

@@ -4,7 +4,6 @@
 //! 架构遵循整洁架构（Clean Architecture）原则，明确分离各层职责。
 
 use async_trait::async_trait;
-use axum::handler::Handler;
 use ethereum_types::U64;
 use thiserror::Error;
 use crate::inbound::json_rpc_trait::EthApiExecutor;
