@@ -92,4 +92,27 @@ pub trait EthApiExecutor: Send + Sync {
 
     /// web3_clientVersion - 返回客户端版本
     async fn web3_client_version(&self) -> Result<serde_json::Value, RpcMethodError>;
+
+    // EIP-1559 相关方法
+
+    /// eth_sendTransaction - 发送交易（返回交易哈希）
+    async fn eth_send_transaction(
+        &self,
+        params: serde_json::Value
+    ) -> Result<serde_json::Value, RpcMethodError>;
+
+    /// eth_sendRawTransaction - 发送已签名的原始交易
+    async fn eth_send_raw_transaction(
+        &self,
+        params: serde_json::Value
+    ) -> Result<serde_json::Value, RpcMethodError>;
+
+    /// eth_feeHistory - 返回历史费用信息（EIP-1559）
+    async fn eth_fee_history(
+        &self,
+        params: serde_json::Value
+    ) -> Result<serde_json::Value, RpcMethodError>;
+
+    /// eth_maxPriorityFeePerGas - 返回建议的最大优先费用（EIP-1559）
+    async fn eth_max_priority_fee_per_gas(&self) -> Result<serde_json::Value, RpcMethodError>;
 }

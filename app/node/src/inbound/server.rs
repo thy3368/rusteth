@@ -3,7 +3,9 @@
 //! 使用 Axum 构建的低延迟 HTTP 服务器，配置经过优化
 //! 完全静态分发，无运行时开销
 
-use crate::inbound::json_rpc::{EthJsonRpcHandler, EthereumRepository, JsonRpcRequest};
+use crate::inbound::json_rpc::EthJsonRpcHandler;
+use crate::inbound::json_types::JsonRpcRequest;
+use crate::service::ethereum_service::EthereumService;
 use axum::{
     extract::State,
     http::{Method, StatusCode},
@@ -25,7 +27,7 @@ pub struct ServerState<R> {
 }
 
 /// 创建并配置 HTTP 服务器（完全静态分发版本）
-pub fn create_server<R: EthereumRepository + Clone + 'static>(
+pub fn create_server<R: EthereumService + Clone + 'static>(
     rpc_handler: EthJsonRpcHandler<R>,
 ) -> Router {
     let state = ServerState { rpc_handler };
@@ -48,7 +50,7 @@ pub fn create_server<R: EthereumRepository + Clone + 'static>(
 }
 
 /// RPC 请求主处理器（完全静态分发，零成本抽象）
-async fn handle_rpc_request<R: EthereumRepository + Clone>(
+async fn handle_rpc_request<R: EthereumService + Clone>(
     State(state): State<ServerState<R>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Response {
@@ -62,7 +64,7 @@ async fn health_check() -> impl IntoResponse {
 }
 
 /// 运行服务器（优化配置，完全静态分发）
-pub async fn run_server<R: EthereumRepository + Clone + 'static>(
+pub async fn run_server<R: EthereumService + Clone + 'static>(
     host: &str,
     port: u16,
     rpc_handler: EthJsonRpcHandler<R>,

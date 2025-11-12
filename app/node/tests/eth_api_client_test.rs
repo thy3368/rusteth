@@ -5,8 +5,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::infrastructure::eth_api_client::EthApiClient;
-    use crate::inbound::eth_api_trait::EthApiExecutor;
+    use node::infrastructure::eth_api_client::EthApiClient;
+    use node::inbound::json_rpc_trait::EthApiExecutor;
 
     /// 测试客户端创建
     #[tokio::test]

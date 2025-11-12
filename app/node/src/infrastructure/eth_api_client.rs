@@ -3,7 +3,7 @@
 //! 本模块提供高性能的以太坊 JSON-RPC 客户端,用于调用远端 RPC 服务。
 //! 遵循整洁架构原则,位于基础设施层,实现了 `EthApiExecutor` trait。
 
-use crate::inbound::eth_api_trait::EthApiExecutor;
+use crate::inbound::json_rpc_trait::EthApiExecutor;
 use crate::inbound::json_rpc::RpcMethodError;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -218,5 +218,27 @@ impl EthApiExecutor for EthApiClient {
     /// web3_clientVersion - 返回客户端版本
     async fn web3_client_version(&self) -> Result<Value, RpcMethodError> {
         self.send_request("web3_clientVersion", serde_json::json!([])).await
+    }
+
+    // EIP-1559 相关方法
+
+    /// eth_sendTransaction - 发送交易
+    async fn eth_send_transaction(&self, params: Value) -> Result<Value, RpcMethodError> {
+        self.send_request("eth_sendTransaction", params).await
+    }
+
+    /// eth_sendRawTransaction - 发送已签名的原始交易
+    async fn eth_send_raw_transaction(&self, params: Value) -> Result<Value, RpcMethodError> {
+        self.send_request("eth_sendRawTransaction", params).await
+    }
+
+    /// eth_feeHistory - 返回历史费用信息
+    async fn eth_fee_history(&self, params: Value) -> Result<Value, RpcMethodError> {
+        self.send_request("eth_feeHistory", params).await
+    }
+
+    /// eth_maxPriorityFeePerGas - 返回建议的最大优先费用
+    async fn eth_max_priority_fee_per_gas(&self) -> Result<Value, RpcMethodError> {
+        self.send_request("eth_maxPriorityFeePerGas", serde_json::json!([])).await
     }
 }

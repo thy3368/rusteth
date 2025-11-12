@@ -16,7 +16,7 @@
 //! ```
 
 use node::infrastructure::eth_api_client::EthApiClient;
-use node::inbound::eth_api_trait::EthApiExecutor;
+use node::inbound::json_rpc_trait::EthApiExecutor;
 use std::env;
 
 #[tokio::main]

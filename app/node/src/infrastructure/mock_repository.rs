@@ -2,14 +2,10 @@
 //!
 //! 这是一个简单的内存实现，用于测试和开发
 
-use crate::inbound::json_rpc::{
-    Block, BlockId, CallRequest, EthereumRepository, FilterOptions, Log,
-    RepositoryError, Transaction, TransactionReceipt,
-};
-use async_trait::async_trait;
 use ethereum_types::{Address, Bloom, H256, H64, U256, U64};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use crate::service::types::{Block, Transaction, TransactionReceipt};
 
 /// 模拟的内存以太坊仓储（支持 Clone 用于静态分发）
 #[derive(Clone)]
@@ -57,7 +53,10 @@ impl MockEthereumRepository {
             uncles: vec![],
         };
 
-        self.blocks.write().unwrap().insert(U64::zero(), genesis_block);
+        self.blocks
+            .write()
+            .unwrap()
+            .insert(U64::zero(), genesis_block);
     }
 
     /// 添加模拟区块（用于测试）
@@ -84,129 +83,5 @@ impl MockEthereumRepository {
 impl Default for MockEthereumRepository {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[async_trait]
-impl EthereumRepository for MockEthereumRepository {
-    async fn get_block_number(&self) -> Result<U64, RepositoryError> {
-        Ok(*self.current_block_number.read().unwrap())
-    }
-
-    async fn get_block_by_number(
-        &self,
-        number: U64,
-        _full_tx: bool,
-    ) -> Result<Option<Block>, RepositoryError> {
-        Ok(self.blocks.read().unwrap().get(&number).cloned())
-    }
-
-    async fn get_block_by_hash(
-        &self,
-        hash: H256,
-        _full_tx: bool,
-    ) -> Result<Option<Block>, RepositoryError> {
-        Ok(self
-            .blocks
-            .read()
-            .unwrap()
-            .values()
-            .find(|b| b.hash == hash)
-            .cloned())
-    }
-
-    async fn get_transaction_by_hash(
-        &self,
-        hash: H256,
-    ) -> Result<Option<Transaction>, RepositoryError> {
-        Ok(self.transactions.read().unwrap().get(&hash).cloned())
-    }
-
-    async fn get_transaction_receipt(
-        &self,
-        hash: H256,
-    ) -> Result<Option<TransactionReceipt>, RepositoryError> {
-        Ok(self.receipts.read().unwrap().get(&hash).cloned())
-    }
-
-    async fn get_balance(
-        &self,
-        _address: Address,
-        _block: BlockId,
-    ) -> Result<U256, RepositoryError> {
-        // 模拟：返回 1 ETH
-        Ok(U256::from(1_000_000_000_000_000_000u64))
-    }
-
-    async fn get_storage_at(
-        &self,
-        _address: Address,
-        _position: U256,
-        _block: BlockId,
-    ) -> Result<H256, RepositoryError> {
-        // 模拟：返回零值
-        Ok(H256::zero())
-    }
-
-    async fn get_transaction_count(
-        &self,
-        _address: Address,
-        _block: BlockId,
-    ) -> Result<U256, RepositoryError> {
-        // 模拟：返回 nonce 0
-        Ok(U256::zero())
-    }
-
-    async fn get_code(
-        &self,
-        _address: Address,
-        _block: BlockId,
-    ) -> Result<Vec<u8>, RepositoryError> {
-        // 模拟：返回空代码
-        Ok(vec![])
-    }
-
-    async fn call(
-        &self,
-        _request: CallRequest,
-        _block: BlockId,
-    ) -> Result<Vec<u8>, RepositoryError> {
-        // 模拟：返回空结果
-        Ok(vec![])
-    }
-
-    async fn estimate_gas(&self, _request: CallRequest) -> Result<U256, RepositoryError> {
-        // 模拟：返回 21000 gas（标准转账）
-        Ok(U256::from(21000u64))
-    }
-
-    async fn get_logs(&self, _filter: FilterOptions) -> Result<Vec<Log>, RepositoryError> {
-        // 模拟：返回空日志列表
-        Ok(vec![])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_mock_repository() {
-        use crate::inbound::json_rpc::BlockTag;
-
-        let repo = MockEthereumRepository::new();
-
-        // 测试区块号
-        let block_num = repo.get_block_number().await.unwrap();
-        assert_eq!(block_num, U64::zero());
-
-        // 测试创世区块
-        let genesis = repo.get_block_by_number(U64::zero(), false).await.unwrap();
-        assert!(genesis.is_some());
-        assert_eq!(genesis.unwrap().number, U64::zero());
-
-        // 测试余额
-        let balance = repo.get_balance(Address::zero(), BlockId::Tag(BlockTag::Latest)).await.unwrap();
-        assert_eq!(balance, U256::from(1_000_000_000_000_000_000u64));
     }
 }

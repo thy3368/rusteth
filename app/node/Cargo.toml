@@ -48,10 +48,3 @@ libp2p-identity = "0.2"
 rlp = "0.5"
 k256 = { version = "0.13", features = ["ecdsa"] }
 rand = "0.8"
-
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-panic = "abort"
-strip = true

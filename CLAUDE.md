@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 尽量无状态不可变编程
 应用服务定义都用trait
 
+服务与状态数据分开，使用类似erlang的通信机制。erlang编程的最佳实践
 领域的顺序：内存版->单机版->分布式版
 
 ## Project Overview
