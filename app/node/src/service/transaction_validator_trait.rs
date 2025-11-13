@@ -4,7 +4,7 @@
 /// - 不依赖外部实现细节
 /// - 支持静态分发（通过泛型实现）
 
-use crate::domain::entity_types::{DynamicFeeTx, TransactionValidationError};
+use crate::domain::tx_types::{DynamicFeeTx, TransactionValidationError};
 use async_trait::async_trait;
 use ethereum_types::Address;
 

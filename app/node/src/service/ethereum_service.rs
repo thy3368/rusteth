@@ -254,7 +254,7 @@ pub trait EthereumService: Send + Sync {
     /// - `Err(ServiceError)` - 发送失败
     async fn send_raw_transaction(
         &self,
-        tx: crate::domain::entity_types::DynamicFeeTx,
+        tx: crate::domain::tx_types::DynamicFeeTx,
         sender: Address,
     ) -> Result<H256, ServiceError>;
 

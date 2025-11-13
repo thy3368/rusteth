@@ -167,7 +167,7 @@ impl EthereumService for EthereumServiceImpl {
 
     async fn send_raw_transaction(
         &self,
-        tx: crate::domain::entity_types::DynamicFeeTx,
+        tx: crate::domain::tx_types::DynamicFeeTx,
         sender: Address,
     ) -> Result<H256, ServiceError> {
         // ========================================================================

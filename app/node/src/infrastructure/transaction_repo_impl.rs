@@ -1,7 +1,7 @@
 /// 交易池内存实现
 /// 采用Erlang风格的无状态设计：服务与状态分离
 
-use crate::domain::entity_types::DynamicFeeTx;
+use crate::domain::tx_types::DynamicFeeTx;
 use crate::service::repo::transaction_repo::{TxPool, TxPoolError, TxPoolStats};
 use async_trait::async_trait;
 use ethereum_types::{Address, H256, U256};
@@ -242,7 +242,7 @@ impl TxPool for TxPoolImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entity_types::AccessListItem;
+    use crate::domain::tx_types::AccessListItem;
 
     fn create_test_tx(nonce: u64, max_fee: u64) -> DynamicFeeTx {
         DynamicFeeTx {

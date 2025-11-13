@@ -6,7 +6,7 @@
 /// - 线程安全：所有方法都是Send + Sync
 /// - 异步操作：支持高并发场景
 
-use crate::domain::entity_types::DynamicFeeTx;
+use crate::domain::tx_types::DynamicFeeTx;
 use async_trait::async_trait;
 use ethereum_types::{Address, H256};
 

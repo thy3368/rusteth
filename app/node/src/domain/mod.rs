@@ -1,3 +1,3 @@
-pub mod entity_types;
+pub mod tx_types;
 pub mod command_types;
 

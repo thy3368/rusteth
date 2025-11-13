@@ -2,7 +2,7 @@
 /// 参考: https://eips.ethereum.org/EIPS/eip-1559
 /// 参考: https://eips.ethereum.org/EIPS/eip-2718 (Typed Transaction Envelope)
 
-use crate::domain::entity_types::{AccessListItem, DynamicFeeTx, TransactionValidationError};
+use crate::domain::tx_types::{AccessListItem, DynamicFeeTx, TransactionValidationError};
 use ethereum_types::{Address, H256, U256, U64};
 use rlp::{Decodable, DecoderError, Rlp};
 
