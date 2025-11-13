@@ -8,7 +8,7 @@
 /// - EIP-4895: 验证者提款
 /// - Geth: core/types/block.go
 
-use crate::domain::entity_types::DynamicFeeTx;
+use crate::domain::tx_types::DynamicFeeTx;
 use ethereum_types::{Address, Bloom, H256, U256, U64};
 use std::fmt;
 
