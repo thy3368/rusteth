@@ -3,10 +3,11 @@
 //! 本模块根据 EIP-1474 EIP-1559 规范实现以太坊 JSON-RPC 2.0 接口。
 //! 架构遵循整洁架构（Clean Architecture）原则，明确分离各层职责。
 
-use crate::service::command_dispatcher::CommandDispatcher;
+use crate::domain::command_types::CommandError;
 use crate::inbound::command_mapper::{CommandMapper, CommandMapperError};
 use crate::inbound::json_types::{error_codes, JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::inbound::result_mapper::{ResultMapper, ResultMapperError};
+use crate::service::command_dispatcher::CommandDispatcher;
 use crate::service::ethereum_service::EthereumService;
 
 // ============================================================================
