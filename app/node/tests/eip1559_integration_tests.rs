@@ -14,6 +14,7 @@ use node::inbound::json_types::{JsonRpcRequest, JsonRpcResponse, RequestId};
 use node::domain::command_types::{BlockId, BlockTag, CallRequest, SendTransactionRequest};
 use node::service::command_dispatcher::CommandDispatcher;
 use std::sync::Arc;
+use rlp::RlpStream;
 
 #[cfg(test)]
 mod eth_api_client_test;
@@ -135,14 +136,33 @@ async fn test_legacy_send_transaction() {
 }
 
 #[tokio::test]
-#[ignore] // 需要真实的签名交易数据，当前使用 mock 数据会导致 RLP 解码失败
 async fn test_send_raw_transaction() {
     let handler = create_test_handler();
 
-    // 注意：这里需要一个真实的、有效的签名交易数据
-    // 当前的示例数据不是有效的 RLP 编码，会导致解码失败
-    let raw_tx = "02f876018203e882520894b5409d8a3d6c5e9d1bbd635f2bb1c28f2c1e2c8a8080c001a0c6b5b3f8d9e7a2c1f4d6b8e3a5c7d9f1e2a4c6b8d0e2f4a6c8e0f2a4c6b8d0a0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0";
-    let params = serde_json::json!([format!("0x{}", raw_tx)]);
+    // 构造一个有效的 EIP-1559 交易（参考 transaction_decoder.rs 测试）
+    let mut stream = RlpStream::new_list(12);
+    stream.append(&U64::from(1)); // chain_id
+    stream.append(&U64::from(0)); // nonce
+    stream.append(&U256::from(1_000_000_000u64)); // max_priority_fee_per_gas
+    stream.append(&U256::from(2_000_000_000u64)); // max_fee_per_gas
+    stream.append(&U64::from(21000)); // gas_limit
+    stream.append(&Address::from_low_u64_be(0x1234)); // to
+    stream.append(&U256::from(1_000_000_000_000_000_000u64)); // value (1 ETH)
+    stream.append(&vec![0u8; 0]); // data (empty)
+    stream.begin_list(0); // access_list (empty)
+    stream.append(&U64::from(0)); // v
+    stream.append(&U256::from(1)); // r
+    stream.append(&U256::from(1)); // s
+
+    let rlp_encoded = stream.out();
+
+    // 添加 EIP-1559 交易类型前缀 (0x02)
+    let mut raw_tx_bytes = vec![0x02];
+    raw_tx_bytes.extend_from_slice(&rlp_encoded);
+
+    // 转换为十六进制字符串
+    let raw_tx_hex = hex::encode(&raw_tx_bytes);
+    let params = serde_json::json!([format!("0x{}", raw_tx_hex)]);
 
     let result = call_rpc(&handler, "eth_sendRawTransaction", params).await;
 

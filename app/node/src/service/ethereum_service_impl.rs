@@ -170,38 +170,149 @@ impl EthereumService for EthereumServiceImpl {
         tx: crate::domain::entity_types::DynamicFeeTx,
         sender: Address,
     ) -> Result<H256, ServiceError> {
-        // Service层职责：业务逻辑处理
+        // ========================================================================
+        // Service 层职责（业务逻辑处理）
+        // ========================================================================
         // 1. 交易验证（基本验证 + 状态验证）
-        // 2. 入池管理
-        // 3. 事件发布
+        // 2. 防重放检查
+        // 3. 入池管理
+        // 4. 事件发布（P2P 广播）
+        //
+        // 设计原则：
+        // - 遵循 Clean Architecture，Service 层协调领域逻辑和基础设施
+        // - 采用 Erlang 风格的无状态设计，所有状态存储在 Repository 和 TxPool 中
+        // - 使用依赖注入，便于测试和替换实现
 
         use crate::service::repo::transaction_repo::TxPool;
 
-        // Step 1: 基本验证（无状态）
+        // ====================================================================
+        // Step 1: 基本验证（无状态，纯领域逻辑）
+        // ====================================================================
+        // 验证内容：
+        // - max_priority_fee <= max_fee_per_gas
+        // - gas_limit >= 最小值（21000）
+        // - 交易数据大小 <= 128KB
+        // - 签名值有效性（v <= 1）
         tx.validate_basic().map_err(|e| {
-            ServiceError::ValidationError(format!("Basic validation failed: {}", e))
+            ServiceError::ValidationError(format!("基本验证失败: {}", e))
         })?;
 
-        // Step 2: 状态验证（nonce、余额等）
-        // TODO: 使用TransactionValidator进行完整验证
-        // 需要实现AccountStateProvider trait
+        // ====================================================================
+        // Step 2: 状态验证（依赖区块链状态）
+        // ====================================================================
+        // TODO: 实现完整的状态验证
         //
-        // let validator_config = ValidatorConfig {
-        //     chain_id: U64::from(1),
-        //     min_gas_price: U256::from(1_000_000_000u64),
-        //     base_fee_per_gas: U256::from(20_000_000_000u64),
-        // };
-        // let validator = TransactionValidator::new(validator_config, &self.repo);
-        // validator.validate_transaction(&tx, sender).await.map_err(|e| {
-        //     ServiceError::ValidationError(format!("State validation failed: {}", e))
+        // 需要验证的内容：
+        // 1. Chain ID 匹配
+        // 2. Nonce 正确性（必须等于账户当前 nonce）
+        // 3. 账户余额充足（balance >= max_cost = max_fee * gas_limit + value）
+        // 4. 签名有效性（ECDSA 签名验证并恢复发送者地址）
+        // 5. Gas 价格合理性（max_fee_per_gas >= base_fee）
+        //
+        // 实现方式：
+        // ```rust
+        // // 验证 Chain ID
+        // let expected_chain_id = U64::from(1); // 从配置读取
+        // if tx.chain_id != expected_chain_id {
+        //     return Err(ServiceError::ValidationError(
+        //         format!("Chain ID 不匹配: 期望 {}, 实际 {}", expected_chain_id, tx.chain_id)
+        //     ));
+        // }
+        //
+        // // 验证 Nonce
+        // let current_nonce = self.get_transaction_count(sender, BlockId::Tag(BlockTag::Latest)).await?;
+        // if U256::from(tx.nonce.as_u64()) != current_nonce {
+        //     return Err(ServiceError::ValidationError(
+        //         format!("Nonce 不正确: 期望 {}, 实际 {}", current_nonce, tx.nonce)
+        //     ));
+        // }
+        //
+        // // 验证余额
+        // let balance = self.get_balance(sender, BlockId::Tag(BlockTag::Latest)).await?;
+        // let max_cost = tx.max_cost(); // max_fee_per_gas * gas_limit + value
+        // if balance < max_cost {
+        //     return Err(ServiceError::ValidationError(
+        //         format!("余额不足: 需要 {}, 当前 {}", max_cost, balance)
+        //     ));
+        // }
+        //
+        // // 验证签名（需要实现 ECDSA 恢复）
+        // let recovered_sender = tx.recover_sender().map_err(|e| {
+        //     ServiceError::ValidationError(format!("签名验证失败: {}", e))
         // })?;
+        // if recovered_sender != sender {
+        //     return Err(ServiceError::ValidationError(
+        //         format!("发送者地址不匹配: 签名恢复 {}, 参数提供 {}", recovered_sender, sender)
+        //     ));
+        // }
+        //
+        // // 验证 Gas 价格（需要当前区块的 base_fee）
+        // let current_block = self.get_block_number().await?;
+        // if let Some(block) = self.get_block_by_number(current_block, false).await? {
+        //     if let Some(base_fee) = block.base_fee_per_gas {
+        //         if tx.max_fee_per_gas < base_fee {
+        //             return Err(ServiceError::ValidationError(
+        //                 format!("Max fee 过低: 最低 {} (base fee), 实际 {}", base_fee, tx.max_fee_per_gas)
+        //             ));
+        //         }
+        //     }
+        // }
+        // ```
 
-        // Step 3: 加入交易池
-        let tx_hash = self.tx_pool.add(tx, sender).await.map_err(|e| {
-            ServiceError::Other(format!("Failed to add transaction to pool: {}", e))
+        // ====================================================================
+        // Step 3: 防重放检查
+        // ====================================================================
+        // 检查交易池中是否已存在相同的交易
+        // TxPool 会自动处理替换逻辑（价格提升 10%）
+
+        // ====================================================================
+        // Step 4: 加入交易池
+        // ====================================================================
+        // TxPool 会：
+        // - 检查容量限制
+        // - 检查替换交易的价格提升（10%）
+        // - 按 nonce 排序管理 pending 交易
+        // - 返回交易哈希
+        let tx_hash = self.tx_pool.add(tx.clone(), sender).await.map_err(|e| {
+            ServiceError::Other(format!("加入交易池失败: {}", e))
         })?;
 
-        // TODO: 发布事件通知P2P网络广播交易
+        // ====================================================================
+        // Step 5: 事件发布（异步，不阻塞返回）
+        // ====================================================================
+        // TODO: 发布事件通知 P2P 网络广播交易
+        //
+        // 实现方式：
+        // ```rust
+        // // 定义事件
+        // pub enum TxPoolEvent {
+        //     NewTransaction { hash: H256, tx: DynamicFeeTx, sender: Address },
+        //     TransactionReplaced { old_hash: H256, new_hash: H256 },
+        // }
+        //
+        // // 发布事件
+        // let event = TxPoolEvent::NewTransaction {
+        //     hash: tx_hash,
+        //     tx: tx.clone(),
+        //     sender,
+        // };
+        // self.event_publisher.publish(event).await.ok(); // 不阻塞主流程
+        //
+        // // P2P 层订阅事件并广播
+        // // NetworkManager 会监听 TxPoolEvent 并通过 devp2p 广播
+        // ```
+
+        // ====================================================================
+        // Step 6: 日志记录（可选）
+        // ====================================================================
+        // 记录交易提交信息，便于调试和监控
+        tracing::info!(
+            tx_hash = ?tx_hash,
+            sender = ?sender,
+            nonce = tx.nonce.as_u64(),
+            max_fee = ?tx.max_fee_per_gas,
+            "原始交易已提交到交易池"
+        );
 
         Ok(tx_hash)
     }

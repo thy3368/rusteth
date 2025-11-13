@@ -4,3 +4,4 @@ pub mod repo;
 pub mod transaction_validator;
 pub mod command_dispatcher;
 pub mod transaction_validator_trait;
+mod block_trait;

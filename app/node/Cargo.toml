@@ -53,3 +53,4 @@ rlp = "0.5"
 k256 = { version = "0.13", features = ["ecdsa"] }
 rand = "0.8"
 futures = "0.3.31"
+sha3 = "0.10"  # Keccak256 哈希算法

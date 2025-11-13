@@ -78,27 +78,12 @@ impl TxPoolImpl {
         }
     }
 
-    /// 计算交易哈希（临时实现，应该在DynamicFeeTx中实现）
+    /// 计算交易哈希
+    ///
+    /// 使用 DynamicFeeTx::hash() 方法计算标准的 EIP-1559 交易哈希
+    /// hash = keccak256(0x02 || rlp([...]))
     fn compute_tx_hash(&self, tx: &DynamicFeeTx) -> H256 {
-        // TODO: 实现真正的keccak256哈希
-        // 暂时使用简单的哈希方案
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        tx.nonce.as_u64().hash(&mut hasher);
-        tx.chain_id.as_u64().hash(&mut hasher);
-        if let Some(to) = tx.to {
-            to.as_bytes().hash(&mut hasher);
-        }
-        let mut value_bytes = [0u8; 32];
-        tx.value.to_big_endian(&mut value_bytes);
-        value_bytes.hash(&mut hasher);
-
-        let hash_value = hasher.finish();
-        let mut hash = [0u8; 32];
-        hash[0..8].copy_from_slice(&hash_value.to_be_bytes());
-        H256::from(hash)
+        tx.hash()
     }
 
     /// 检查是否需要价格提升（替换交易）

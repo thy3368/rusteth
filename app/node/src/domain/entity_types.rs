@@ -158,10 +158,61 @@ impl DynamicFeeTx {
     }
 
     /// 计算交易哈希
+    ///
+    /// 根据 EIP-2718 和 EIP-1559 规范：
+    /// hash = keccak256(0x02 || rlp([chain_id, nonce, max_priority_fee_per_gas,
+    ///                               max_fee_per_gas, gas_limit, to, value, data,
+    ///                               access_list, v, r, s]))
     pub fn hash(&self) -> H256 {
-        // TODO: 实现完整的EIP-1559交易哈希计算
-        // hash = keccak256(0x02 || rlp([chain_id, nonce, ...]))
-        H256::zero()
+        use rlp::RlpStream;
+        use sha3::{Digest, Keccak256};
+
+        // 构建 RLP 编码（12 个字段）
+        let mut stream = RlpStream::new_list(12);
+        stream.append(&self.chain_id);
+        stream.append(&self.nonce);
+        stream.append(&self.max_priority_fee_per_gas);
+        stream.append(&self.max_fee_per_gas);
+        stream.append(&self.gas_limit);
+
+        // to 字段：None 表示合约创建，编码为空字节
+        if let Some(to) = self.to {
+            stream.append(&to);
+        } else {
+            stream.append(&vec![0u8; 0]); // 空字节数组
+        }
+
+        stream.append(&self.value);
+        stream.append(&self.data);
+
+        // access_list 编码
+        stream.begin_list(self.access_list.len());
+        for item in &self.access_list {
+            stream.begin_list(2);
+            stream.append(&item.address);
+            stream.begin_list(item.storage_keys.len());
+            for key in &item.storage_keys {
+                stream.append(key);
+            }
+        }
+
+        // 签名字段
+        stream.append(&self.v);
+        stream.append(&self.r);
+        stream.append(&self.s);
+
+        let rlp_encoded = stream.out();
+
+        // 添加交易类型前缀 0x02（EIP-1559）
+        let mut tx_bytes = vec![Self::TRANSACTION_TYPE];
+        tx_bytes.extend_from_slice(&rlp_encoded);
+
+        // 计算 keccak256 哈希
+        let mut hasher = Keccak256::new();
+        hasher.update(&tx_bytes);
+        let hash_result = hasher.finalize();
+
+        H256::from_slice(&hash_result)
     }
 }
 
@@ -174,4 +225,150 @@ pub trait TransactionEip4844 {
 /// EIP-2930 访问列表交易 (Type 1) - 预留接口
 pub trait TransactionEip2930 {
     fn access_list(&self) -> &[AccessListItem];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 创建测试用的最小交易
+    fn create_minimal_tx() -> DynamicFeeTx {
+        DynamicFeeTx {
+            chain_id: U64::from(1),
+            nonce: U64::from(0),
+            max_priority_fee_per_gas: U256::from(1_000_000_000u64),
+            max_fee_per_gas: U256::from(2_000_000_000u64),
+            gas_limit: U64::from(21000),
+            to: Some(Address::from_low_u64_be(0x1234)),
+            value: U256::from(1_000_000_000_000_000_000u64),
+            data: vec![],
+            access_list: vec![],
+            v: U64::from(0),
+            r: U256::from(1),
+            s: U256::from(1),
+        }
+    }
+
+    #[test]
+    fn test_transaction_hash_deterministic() {
+        // 交易哈希应该是确定性的
+        let tx1 = create_minimal_tx();
+        let tx2 = create_minimal_tx();
+
+        let hash1 = tx1.hash();
+        let hash2 = tx2.hash();
+
+        assert_eq!(hash1, hash2, "相同交易应该生成相同的哈希");
+        assert_ne!(hash1, H256::zero(), "哈希不应该为零");
+    }
+
+    #[test]
+    fn test_transaction_hash_different_for_different_tx() {
+        let tx1 = create_minimal_tx();
+
+        let mut tx2 = create_minimal_tx();
+        tx2.nonce = U64::from(1); // 修改 nonce
+
+        let hash1 = tx1.hash();
+        let hash2 = tx2.hash();
+
+        assert_ne!(hash1, hash2, "不同交易应该生成不同的哈希");
+    }
+
+    #[test]
+    fn test_transaction_hash_with_contract_creation() {
+        let mut tx = create_minimal_tx();
+        tx.to = None; // 合约创建
+        tx.data = vec![0x60, 0x60, 0x60, 0x40]; // 合约字节码
+
+        let hash = tx.hash();
+        assert_ne!(hash, H256::zero());
+    }
+
+    #[test]
+    fn test_transaction_hash_with_access_list() {
+        let mut tx = create_minimal_tx();
+        tx.access_list = vec![
+            AccessListItem {
+                address: Address::from_low_u64_be(0x5678),
+                storage_keys: vec![
+                    H256::from_low_u64_be(1),
+                    H256::from_low_u64_be(2),
+                ],
+            },
+        ];
+
+        let hash = tx.hash();
+        assert_ne!(hash, H256::zero());
+
+        // 验证带访问列表的交易哈希与不带访问列表的不同
+        let tx_without_access_list = create_minimal_tx();
+        assert_ne!(hash, tx_without_access_list.hash());
+    }
+
+    #[test]
+    fn test_validate_basic_success() {
+        let tx = create_minimal_tx();
+        assert!(tx.validate_basic().is_ok());
+    }
+
+    #[test]
+    fn test_validate_basic_priority_fee_exceeds_max_fee() {
+        let mut tx = create_minimal_tx();
+        tx.max_priority_fee_per_gas = U256::from(3_000_000_000u64);
+        tx.max_fee_per_gas = U256::from(2_000_000_000u64);
+
+        let result = tx.validate_basic();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TransactionValidationError::PriorityFeeExceedsMaxFee
+        ));
+    }
+
+    #[test]
+    fn test_validate_basic_insufficient_gas() {
+        let mut tx = create_minimal_tx();
+        tx.gas_limit = U64::from(20000); // 低于最小值 21000
+
+        let result = tx.validate_basic();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TransactionValidationError::InsufficientGas { .. }
+        ));
+    }
+
+    #[test]
+    fn test_validate_basic_data_too_large() {
+        let mut tx = create_minimal_tx();
+        tx.data = vec![0u8; DynamicFeeTx::MAX_DATA_SIZE + 1];
+
+        let result = tx.validate_basic();
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TransactionValidationError::DataTooLarge { .. }
+        ));
+    }
+
+    #[test]
+    fn test_max_cost_calculation() {
+        let tx = create_minimal_tx();
+
+        // max_cost = max_fee_per_gas * gas_limit + value
+        let expected = U256::from(2_000_000_000u64) * U256::from(21000)
+            + U256::from(1_000_000_000_000_000_000u64);
+
+        assert_eq!(tx.max_cost(), expected);
+    }
+
+    #[test]
+    fn test_max_cost_with_zero_value() {
+        let mut tx = create_minimal_tx();
+        tx.value = U256::zero();
+
+        let expected = U256::from(2_000_000_000u64) * U256::from(21000);
+        assert_eq!(tx.max_cost(), expected);
+    }
 }
