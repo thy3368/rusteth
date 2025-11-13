@@ -1,4 +1,4 @@
-use super::ethereum_service::{EthereumService, ServiceError};
+use super::ethereum_service_trait::{EthereumService, ServiceError};
 use crate::domain::command_types::{
     Block, BlockId, BlockTag, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest,
     Transaction, TransactionReceipt,

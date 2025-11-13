@@ -3,7 +3,7 @@
 //! 直接处理所有 ETH RPC 命令，使用 EthereumService 执行业务逻辑
 
 use crate::domain::command_types::{CommandError, CommandResult, EthCommand};
-use crate::service::ethereum_service::EthereumService;
+use crate::service::ethereum_service_trait::EthereumService;
 use crate::domain::command_types::BlockTag;
 use ethereum_types::U64;
 use std::sync::Arc;

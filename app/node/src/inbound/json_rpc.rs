@@ -8,7 +8,7 @@ use crate::inbound::command_mapper::{CommandMapper, CommandMapperError};
 use crate::inbound::json_types::{error_codes, JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::inbound::result_mapper::{ResultMapper, ResultMapperError};
 use crate::service::command_dispatcher::CommandDispatcher;
-use crate::service::ethereum_service::EthereumService;
+use crate::service::ethereum_service_trait::EthereumService;
 
 // ============================================================================
 // 用例层 - JSON-RPC 方法处理器

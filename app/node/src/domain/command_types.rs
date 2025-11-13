@@ -57,9 +57,9 @@ impl fmt::Display for CommandError {
 impl std::error::Error for CommandError {}
 
 /// 从 ServiceError 转换为 CommandError
-impl From<crate::service::ethereum_service::ServiceError> for CommandError {
-    fn from(err: crate::service::ethereum_service::ServiceError) -> Self {
-        use crate::service::ethereum_service::ServiceError;
+impl From<crate::service::ethereum_service_trait::ServiceError> for CommandError {
+    fn from(err: crate::service::ethereum_service_trait::ServiceError) -> Self {
+        use crate::service::ethereum_service_trait::ServiceError;
         match err {
             ServiceError::BlockNotFound => Self::NotFound("区块未找到".to_string()),
             ServiceError::TransactionNotFound => Self::NotFound("交易未找到".to_string()),

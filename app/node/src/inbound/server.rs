@@ -4,7 +4,7 @@
 
 use crate::inbound::json_rpc::EthJsonRpcHandler;
 use crate::inbound::json_types::JsonRpcRequest;
-use crate::service::ethereum_service::EthereumService;
+use crate::service::ethereum_service_trait::EthereumService;
 use axum::{
     extract::State,
     http::{Method, StatusCode},
