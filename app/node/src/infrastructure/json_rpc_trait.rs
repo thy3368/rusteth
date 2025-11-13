@@ -28,7 +28,7 @@ pub enum RpcMethodError {
 /// 定义了所有符合 EIP-1474 规范的 JSON-RPC 方法。
 /// 实现此 trait 的类型需要提供具体的业务逻辑。
 #[async_trait]
-pub trait EthApiExecutor: Send + Sync {
+pub trait EthJsonRpc: Send + Sync {
     /// eth_blockNumber - 返回当前区块号
     async fn eth_block_number(&self) -> Result<serde_json::Value, RpcMethodError>;
 
