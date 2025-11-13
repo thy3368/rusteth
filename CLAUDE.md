@@ -13,6 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 服务与状态数据分开，使用类似erlang的通信机制。erlang编程的最佳实践
 领域的顺序：内存版->单机版->分布式版
 
+编解码的逻辑放在adapter中，不要放在domain中
+
 ## Project Overview
 
 RustEth is a high-performance Ethereum JSON-RPC server implementation based on EIP-1474, built with Rust following Clean

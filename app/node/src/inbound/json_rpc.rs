@@ -285,11 +285,35 @@ impl<R: EthereumService> EthApiExecutor for EthJsonRpcHandler<R> {
         &self,
         params: serde_json::Value
     ) -> Result<serde_json::Value, RpcMethodError> {
+        use crate::inbound::transaction_decoder::decode_raw_transaction;
+
+        // Interface Layer职责：数据格式转换
+        // 1. 解析HTTP参数（hex string）
+        // 2. RLP解码为领域对象
+        // 3. ECDSA签名恢复
+        // 4. 调用Service层
+
         let params: (String,) = serde_json::from_value(params)?;
-        // 解析十六进制字符串
+
+        // Step 1: 解析十六进制字符串
         let raw_tx = hex::decode(params.0.trim_start_matches("0x"))
             .map_err(|e| RpcMethodError::InvalidParams(format!("无效的十六进制数据: {}", e)))?;
-        let tx_hash = self.service.send_raw_transaction(raw_tx).await?;
+
+        // Step 2: RLP解码为领域层交易实体
+        let tx = decode_raw_transaction(&raw_tx)
+            .map_err(|e| RpcMethodError::InvalidParams(format!("RLP解码失败: {}", e)))?;
+
+        // Step 3: 签名恢复 - 验证签名并恢复发送者地址
+        // TODO: 实现ECDSA签名恢复，目前使用mock地址
+        let sender = ethereum_types::Address::from_low_u64_be(0x9999); // Mock sender
+
+        // 生产环境中应该这样实现：
+        // let sender = tx.recover_sender()
+        //     .map_err(|e| RpcMethodError::InvalidParams(format!("签名验证失败: {}", e)))?;
+
+        // Step 4: 调用Service层处理业务逻辑
+        let tx_hash = self.service.send_raw_transaction(tx, sender).await?;
+
         Ok(serde_json::to_value(tx_hash)?)
     }
 

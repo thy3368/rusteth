@@ -4,17 +4,22 @@ use super::types::{
     Transaction, TransactionReceipt,
 };
 use crate::infrastructure::mock_repository::MockEthereumRepository;
+use crate::infrastructure::transaction_repo_impl::TxPoolImpl;
 use async_trait::async_trait;
 use ethereum_types::{Address, H256, U256, U64};
 
 #[derive(Clone)]
 pub struct EthereumServiceImpl {
     pub repo: MockEthereumRepository,
+    pub tx_pool: TxPoolImpl,
 }
 
 impl EthereumServiceImpl {
     pub fn new(repo: MockEthereumRepository) -> Self {
-        Self { repo }
+        Self {
+            repo,
+            tx_pool: TxPoolImpl::default(),
+        }
     }
 }
 
@@ -160,20 +165,45 @@ impl EthereumService for EthereumServiceImpl {
         Ok(tx_hash)
     }
 
-    async fn send_raw_transaction(&self, raw_tx: Vec<u8>) -> Result<H256, ServiceError> {
-        // todo 原始交易
-        // 1  池中没有，则验证交易并通过放到放池子；从池子取交易多少笔交易并生成block;  原子写（block header,交易,凭证，账号新状态）
-        //
-        // 模拟：对原始交易数据进行哈希
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+    async fn send_raw_transaction(
+        &self,
+        tx: crate::domain::entity_types::DynamicFeeTx,
+        sender: Address,
+    ) -> Result<H256, ServiceError> {
+        // Service层职责：业务逻辑处理
+        // 1. 交易验证（基本验证 + 状态验证）
+        // 2. 入池管理
+        // 3. 事件发布
 
-        let mut hasher = DefaultHasher::new();
-        raw_tx.hash(&mut hasher);
-        let hash_value = hasher.finish();
-        let mut hash = [0u8; 32];
-        hash[0..8].copy_from_slice(&hash_value.to_be_bytes());
-        Ok(H256::from(hash))
+        use crate::service::repo::transaction_repo::TxPool;
+
+        // Step 1: 基本验证（无状态）
+        tx.validate_basic().map_err(|e| {
+            ServiceError::ValidationError(format!("Basic validation failed: {}", e))
+        })?;
+
+        // Step 2: 状态验证（nonce、余额等）
+        // TODO: 使用TransactionValidator进行完整验证
+        // 需要实现AccountStateProvider trait
+        //
+        // let validator_config = ValidatorConfig {
+        //     chain_id: U64::from(1),
+        //     min_gas_price: U256::from(1_000_000_000u64),
+        //     base_fee_per_gas: U256::from(20_000_000_000u64),
+        // };
+        // let validator = TransactionValidator::new(validator_config, &self.repo);
+        // validator.validate_transaction(&tx, sender).await.map_err(|e| {
+        //     ServiceError::ValidationError(format!("State validation failed: {}", e))
+        // })?;
+
+        // Step 3: 加入交易池
+        let tx_hash = self.tx_pool.add(tx, sender).await.map_err(|e| {
+            ServiceError::Other(format!("Failed to add transaction to pool: {}", e))
+        })?;
+
+        // TODO: 发布事件通知P2P网络广播交易
+
+        Ok(tx_hash)
     }
 
     async fn fee_history(

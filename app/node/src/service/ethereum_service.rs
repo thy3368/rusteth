@@ -232,15 +232,20 @@ pub trait EthereumService: Send + Sync {
         request: SendTransactionRequest,
     ) -> Result<H256, ServiceError>;
 
-    /// 发送原始交易（已签名的交易数据）
+    /// 发送原始交易（已解码的领域交易对象）
     ///
     /// # 参数
-    /// - `raw_tx` - 已签名的原始交易数据（RLP 编码）
+    /// - `tx` - 已解码和验证签名的领域交易对象
+    /// - `sender` - 交易发送者地址（从签名恢复）
     ///
     /// # 返回
     /// - `Ok(H256)` - 交易哈希
     /// - `Err(ServiceError)` - 发送失败
-    async fn send_raw_transaction(&self, raw_tx: Vec<u8>) -> Result<H256, ServiceError>;
+    async fn send_raw_transaction(
+        &self,
+        tx: crate::domain::entity_types::DynamicFeeTx,
+        sender: Address,
+    ) -> Result<H256, ServiceError>;
 
     // ========================================================================
     // EIP-1559 费用相关方法
@@ -292,9 +297,17 @@ pub enum ServiceError {
     #[error("交易未找到")]
     TransactionNotFound,
 
+    /// 交易验证错误
+    #[error("交易验证失败: {0}")]
+    ValidationError(String),
+
     /// 内部错误（包含详细错误信息）
     #[error("内部错误: {0}")]
     InternalError(String),
+
+    /// 其他错误
+    #[error("{0}")]
+    Other(String),
 }
 
 // ============================================================================
