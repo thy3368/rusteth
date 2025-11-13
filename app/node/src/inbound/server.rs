@@ -1,7 +1,6 @@
 //! 以太坊 JSON-RPC 的 HTTP 服务器实现
 //!
 //! 使用 Axum 构建的低延迟 HTTP 服务器，配置经过优化
-//! 完全静态分发，无运行时开销
 
 use crate::inbound::json_rpc::EthJsonRpcHandler;
 use crate::inbound::json_types::JsonRpcRequest;
@@ -20,15 +19,15 @@ use tower_http::{
 };
 use tracing::info;
 
-/// HTTP 服务器状态（完全静态分发，无 Arc 包装）
+/// HTTP 服务器状态
 #[derive(Clone)]
-pub struct ServerState<R> {
-    pub rpc_handler: EthJsonRpcHandler<R>,
+pub struct ServerState<S: EthereumService> {
+    pub rpc_handler: EthJsonRpcHandler<S>,
 }
 
-/// 创建并配置 HTTP 服务器（完全静态分发版本）
-pub fn create_server<R: EthereumService + Clone + 'static>(
-    rpc_handler: EthJsonRpcHandler<R>,
+/// 创建并配置 HTTP 服务器
+pub fn create_server<S: EthereumService + Clone + 'static>(
+    rpc_handler: EthJsonRpcHandler<S>,
 ) -> Router {
     let state = ServerState { rpc_handler };
 
@@ -39,7 +38,7 @@ pub fn create_server<R: EthereumService + Clone + 'static>(
         .allow_headers(Any);
 
     Router::new()
-        .route("/", post(handle_rpc_request::<R>))
+        .route("/", post(handle_rpc_request::<S>))
         .route("/health", axum::routing::get(health_check))
         .layer(
             ServiceBuilder::new()
@@ -49,9 +48,9 @@ pub fn create_server<R: EthereumService + Clone + 'static>(
         .with_state(state)
 }
 
-/// RPC 请求主处理器（完全静态分发，零成本抽象）
-async fn handle_rpc_request<R: EthereumService + Clone>(
-    State(state): State<ServerState<R>>,
+/// RPC 请求主处理器
+async fn handle_rpc_request<S: EthereumService + Clone>(
+    State(state): State<ServerState<S>>,
     Json(request): Json<JsonRpcRequest>,
 ) -> Response {
     let response = state.rpc_handler.handle(request).await;
@@ -63,11 +62,11 @@ async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
 
-/// 运行服务器（优化配置，完全静态分发）
-pub async fn run_server<R: EthereumService + Clone + 'static>(
+/// 运行服务器
+pub async fn run_server<S: EthereumService + Clone + 'static>(
     host: &str,
     port: u16,
-    rpc_handler: EthJsonRpcHandler<R>,
+    rpc_handler: EthJsonRpcHandler<S>,
 ) -> anyhow::Result<()> {
     let app = create_server(rpc_handler);
     let addr = format!("{}:{}", host, port);

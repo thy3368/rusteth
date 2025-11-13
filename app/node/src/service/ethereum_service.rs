@@ -24,9 +24,8 @@ use super::types::{
     Transaction, TransactionReceipt,
 };
 
-// 导入 CQRS 相关类型
-use crate::domain::command_handler::{CommandError, CommandHandler};
-use crate::domain::commands::{CommandResult, EthCommand};
+// CommandHandler 已从 EthereumService 中分离
+// 参见: domain/command_dispatcher.rs 和 infrastructure/service_command_handlers.rs
 
 // ============================================================================
 // 服务接口定义
@@ -39,14 +38,18 @@ use crate::domain::commands::{CommandResult, EthCommand};
 /// - 返回 Result 类型进行错误处理
 /// - 使用领域类型作为参数和返回值
 /// - 支持 Send + Sync，确保线程安全
-/// - 实现 CommandHandler，支持 CQRS 模式
+/// - **纯业务逻辑接口**，不包含命令分发逻辑
 ///
 /// ## 实现者
-/// - `MockEthereumRepository` - 内存模拟实现（测试用）
-/// - `PostgresEthereumRepository` - PostgreSQL 实现（生产用）
-/// - `RPCEthereumRepository` - 代理到远程 RPC 节点
+/// - `EthereumServiceImpl` - 业务服务实现
+/// - 通过 `ServiceCommandHandler` 适配器桥接到命令处理器
+///
+/// ## 架构说明
+/// - Service 层：提供业务逻辑方法
+/// - Handler 层：通过 ServiceCommandHandler 适配器转换为命令处理
+/// - 分离关注点：业务逻辑与命令分发解耦
 #[async_trait]
-pub trait EthereumService: Send + Sync + CommandHandler {
+pub trait EthereumService: Send + Sync {
     // ========================================================================
     // 区块查询方法
     // ========================================================================
@@ -318,21 +321,8 @@ pub enum ServiceError {
     Other(String),
 }
 
-/// 从 CommandError 转换为 ServiceError
-impl From<CommandError> for ServiceError {
-    fn from(err: CommandError) -> Self {
-        match err {
-            CommandError::NotFound(msg) => Self::InternalError(format!("未找到: {}", msg)),
-            CommandError::InvalidParams(msg) => Self::ValidationError(msg),
-            CommandError::ValidationError(msg) => Self::ValidationError(msg),
-            CommandError::UnsupportedCommand(msg) => Self::Other(format!("不支持的命令: {}", msg)),
-            CommandError::InternalError(msg) => Self::InternalError(msg),
-            CommandError::NetworkError(msg) => Self::InternalError(format!("网络错误: {}", msg)),
-            CommandError::DatabaseError(msg) => Self::InternalError(format!("数据库错误: {}", msg)),
-            CommandError::Timeout(msg) => Self::InternalError(format!("超时: {}", msg)),
-        }
-    }
-}
+// CommandError -> ServiceError 转换已移除
+// ServiceError 是独立的业务层错误类型，不再依赖 CommandError
 
 // ============================================================================
 // 单元测试

@@ -3,30 +3,37 @@
 //! 本模块根据 EIP-1474 EIP-1559 规范实现以太坊 JSON-RPC 2.0 接口。
 //! 架构遵循整洁架构（Clean Architecture）原则，明确分离各层职责。
 
-use crate::domain::command_handler::CommandHandler;
+use crate::domain::command_dispatcher::CommandDispatcher;
+use crate::domain::commands::CommandError;
 use crate::inbound::command_mapper::{CommandMapper, CommandMapperError};
 use crate::inbound::json_types::{error_codes, JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::inbound::result_mapper::{ResultMapper, ResultMapperError};
-use thiserror::Error;
+use crate::service::ethereum_service::EthereumService;
+
 // ============================================================================
 // 用例层 - JSON-RPC 方法处理器
 // ============================================================================
 
-/// JSON-RPC 主处理器（遵循整洁架构，使用静态分发）
+/// JSON-RPC 主处理器
 ///
 /// # CQRS 架构
 /// 采用命令查询职责分离（CQRS）模式：
 /// 1. JSON-RPC Request → Domain Command (通过 CommandMapper)
-/// 2. Domain Command → Handler.ask() → CommandResult (领域层处理)
+/// 2. Domain Command → Dispatcher.ask() → CommandResult (领域层处理)
 /// 3. CommandResult → JSON Response (通过 ResultMapper)
 #[derive(Clone)]
-pub struct EthJsonRpcHandler<H> {
-    pub(crate) handler: H,
+pub struct EthJsonRpcHandler<S: EthereumService> {
+    dispatcher: CommandDispatcher<S>,
+    // TODO: 增加 command_repo 用于命令持久化/审计/溯源
+    // command_repo: Arc<dyn CommandRepository>,
 }
 
-impl<H: CommandHandler> EthJsonRpcHandler<H> {
-    pub fn new(handler: H) -> Self {
-        Self { handler }
+impl<S: EthereumService> EthJsonRpcHandler<S> {
+    pub fn new(dispatcher: CommandDispatcher<S>) -> Self {
+        Self {
+            dispatcher,
+            // TODO: 传入 command_repo 参数
+        }
     }
 
     /// JSON-RPC 请求主分发方法（CQRS 模式）
@@ -58,9 +65,13 @@ impl<H: CommandHandler> EthJsonRpcHandler<H> {
             }
         };
 
-        // Step 2: 通过 Handler 处理命令（Erlang 风格的 ask）
-        // 注意：handler 内部已经实现了动态查找逻辑（HandlerRepository.query）
-        let result = self.handler.ask(command).await;
+        // TODO: 增加 commandRepo 用于命令持久化
+        // let commandRepo = self.command_repo.clone();
+        // commandRepo.save(&command).await?;
+
+        // Step 2: 通过 Dispatcher 处理命令（Erlang 风格的 ask）
+        // Dispatcher 内部会动态查找并分发命令到具体的 Handler
+        let result = self.dispatcher.ask(command).await;
 
         // Step 3: 将 CommandResult 转换为 JSON Response
         match result {
@@ -106,8 +117,7 @@ impl<H: CommandHandler> EthJsonRpcHandler<H> {
     }
 
     /// 将 CommandError 映射为 JSON-RPC 错误
-    fn map_command_error(error: crate::domain::command_handler::CommandError) -> JsonRpcError {
-        use crate::domain::command_handler::CommandError;
+    fn map_command_error(error: CommandError) -> JsonRpcError {
 
         match error {
             CommandError::UnsupportedCommand(msg) => JsonRpcError {
@@ -178,13 +188,17 @@ impl<H: CommandHandler> EthJsonRpcHandler<H> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::command_handler::NoOpCommandHandler;
+    use crate::infrastructure::mock_repository::MockEthereumRepository;
     use crate::inbound::json_types::RequestId;
+    use crate::service::ethereum_service_impl::EthereumServiceImpl;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_handle_simple_request() {
-        let handler = NoOpCommandHandler;
-        let rpc_handler = EthJsonRpcHandler::new(handler);
+        let mock_repo = MockEthereumRepository::new();
+        let service = Arc::new(EthereumServiceImpl::new(mock_repo));
+        let dispatcher = CommandDispatcher::new(service);
+        let rpc_handler = EthJsonRpcHandler::new(dispatcher);
 
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -194,9 +208,7 @@ mod tests {
         };
 
         let response = rpc_handler.handle(request).await;
-
-        // NoOpCommandHandler 应该返回错误
-        assert!(matches!(response, JsonRpcResponse::Error { .. }));
+        assert!(matches!(response, JsonRpcResponse::Success { .. }));
     }
 
     #[test]

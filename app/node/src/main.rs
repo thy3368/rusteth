@@ -1,8 +1,9 @@
+use node::domain::command_dispatcher::CommandDispatcher;
 use node::inbound::json_rpc::EthJsonRpcHandler;
 use node::inbound::server::run_server;
 use node::infrastructure::mock_repository::MockEthereumRepository;
-
 use node::service::ethereum_service_impl::EthereumServiceImpl;
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -16,30 +17,41 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // 基础设施层 - 创建仓储（完全静态分发）
+    println!("🏗️  构建 Clean Architecture 依赖链...\n");
+
+    // 基础设施层 - 创建数据仓储
+    println!("📦 [Infrastructure] MockEthereumRepository");
     let repo = MockEthereumRepository::new();
 
-    let service = EthereumServiceImpl::new(repo);
+    // 服务层 - 创建业务服务
+    println!("🔧 [Service] EthereumServiceImpl");
+    let service = Arc::new(EthereumServiceImpl::new(repo));
 
-    // 用例层 - 创建 RPC 处理器（完全静态分发，零成本抽象）
-    let rpc_handler = EthJsonRpcHandler::new(service);
+    // 领域层 - 创建命令分发器
+    println!("🚀 [Domain] CommandDispatcher");
+    let dispatcher = CommandDispatcher::new(service);
 
-    // 接口层 - 运行 HTTP 服务器
+    // 接口层 - 创建 JSON-RPC 处理器
+    println!("🌐 [Interface] EthJsonRpcHandler");
+    let rpc_handler = EthJsonRpcHandler::new(dispatcher);
+
+    // 启动 HTTP 服务器
     let host = "127.0.0.1";
-    let port = 8545; // 标准以太坊 RPC 端口
+    let port = 8545;
 
+    println!("\n✅ 依赖注入完成！\n");
     println!("🚀 RustEth 节点启动中...");
-    println!(
-        "📡 以太坊 JSON-RPC 服务器监听地址：http://{}:{}",
-        host, port
-    );
-    println!("🏥 健康检查：http://{}:{}/health", host, port);
-    println!("\n💡 示例请求：");
+    println!("📡 JSON-RPC: http://{}:{}", host, port);
+    println!("🏥 Health: http://{}:{}/health", host, port);
+    println!("\n💡 测试命令：");
     println!(
         r#"curl -X POST http://{}:{} -H "Content-Type: application/json" --data '{{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}}'"#,
         host, port
     );
-    println!("\n⚡ 性能优化：完全静态分发，零虚函数表开销");
+    println!("\n⚡ 架构：");
+    println!("   ✓ Clean Architecture 三层架构");
+    println!("   ✓ CQRS 命令查询分离");
+    println!("   ✓ 极简设计，无过度抽象");
 
     run_server(host, port, rpc_handler).await?;
 

@@ -12,6 +12,59 @@
 
 use crate::service::types::{BlockId, CallRequest, FilterOptions, SendTransactionRequest};
 use ethereum_types::{Address, H256, U256, U64};
+use std::fmt;
+
+/// 命令处理错误
+#[derive(Debug)]
+pub enum CommandError {
+    /// 不支持的命令
+    UnsupportedCommand(String),
+    /// 无效的参数
+    InvalidParams(String),
+    /// 资源未找到
+    NotFound(String),
+    /// 验证错误
+    ValidationError(String),
+    /// 内部错误
+    InternalError(String),
+    /// 网络错误
+    NetworkError(String),
+    /// 数据库错误
+    DatabaseError(String),
+    /// 超时
+    Timeout(String),
+}
+
+impl fmt::Display for CommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedCommand(msg) => write!(f, "不支持的命令: {}", msg),
+            Self::InvalidParams(msg) => write!(f, "无效参数: {}", msg),
+            Self::NotFound(msg) => write!(f, "资源未找到: {}", msg),
+            Self::ValidationError(msg) => write!(f, "验证失败: {}", msg),
+            Self::InternalError(msg) => write!(f, "内部错误: {}", msg),
+            Self::NetworkError(msg) => write!(f, "网络错误: {}", msg),
+            Self::DatabaseError(msg) => write!(f, "数据库错误: {}", msg),
+            Self::Timeout(msg) => write!(f, "超时: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for CommandError {}
+
+/// 从 ServiceError 转换为 CommandError
+impl From<crate::service::ethereum_service::ServiceError> for CommandError {
+    fn from(err: crate::service::ethereum_service::ServiceError) -> Self {
+        use crate::service::ethereum_service::ServiceError;
+        match err {
+            ServiceError::BlockNotFound => Self::NotFound("区块未找到".to_string()),
+            ServiceError::TransactionNotFound => Self::NotFound("交易未找到".to_string()),
+            ServiceError::ValidationError(msg) => Self::ValidationError(msg),
+            ServiceError::InternalError(msg) => Self::InternalError(msg),
+            ServiceError::Other(msg) => Self::InternalError(msg),
+        }
+    }
+}
 
 /// 以太坊 RPC 命令
 ///
@@ -216,7 +269,10 @@ mod tests {
         let cmd = EthCommand::GetBlockNumber;
         assert_eq!(cmd.name(), "eth_blockNumber");
 
-        let cmd = EthCommand::GetBalance(Address::zero(), BlockId::Tag(crate::service::types::BlockTag::Latest));
+        let cmd = EthCommand::GetBalance(
+            Address::zero(),
+            BlockId::Tag(crate::service::types::BlockTag::Latest),
+        );
         assert_eq!(cmd.name(), "eth_getBalance");
     }
 
