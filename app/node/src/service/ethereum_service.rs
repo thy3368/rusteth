@@ -8,16 +8,25 @@
 //! - 定义服务层错误类型
 //! - 不依赖任何具体实现
 //! - 由基础设施层（Infrastructure）实现
+//!
+//! ## CQRS 架构
+//! - 实现 CommandHandler trait，支持命令模式
+//! - 通过 ask(command) 统一处理所有请求
+//! - 保留原有方法接口以兼容现有代码
 
 use async_trait::async_trait;
 use ethereum_types::{Address, H256, U256, U64};
 use thiserror::Error;
 
-// 导入领域类型（从同一层级的 types 模块）
+// 导入领域类型
 use super::types::{
-    Block, BlockId, CallRequest, FeeHistory, FilterOptions, Log,
-    SendTransactionRequest, Transaction, TransactionReceipt,
+    Block, BlockId, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest,
+    Transaction, TransactionReceipt,
 };
+
+// 导入 CQRS 相关类型
+use crate::domain::command_handler::{CommandError, CommandHandler};
+use crate::domain::commands::{CommandResult, EthCommand};
 
 // ============================================================================
 // 服务接口定义
@@ -30,13 +39,14 @@ use super::types::{
 /// - 返回 Result 类型进行错误处理
 /// - 使用领域类型作为参数和返回值
 /// - 支持 Send + Sync，确保线程安全
+/// - 实现 CommandHandler，支持 CQRS 模式
 ///
 /// ## 实现者
 /// - `MockEthereumRepository` - 内存模拟实现（测试用）
 /// - `PostgresEthereumRepository` - PostgreSQL 实现（生产用）
 /// - `RPCEthereumRepository` - 代理到远程 RPC 节点
 #[async_trait]
-pub trait EthereumService: Send + Sync {
+pub trait EthereumService: Send + Sync + CommandHandler {
     // ========================================================================
     // 区块查询方法
     // ========================================================================
@@ -227,10 +237,8 @@ pub trait EthereumService: Send + Sync {
     /// # 返回
     /// - `Ok(H256)` - 交易哈希
     /// - `Err(ServiceError)` - 发送失败
-    async fn send_transaction(
-        &self,
-        request: SendTransactionRequest,
-    ) -> Result<H256, ServiceError>;
+    async fn send_transaction(&self, request: SendTransactionRequest)
+        -> Result<H256, ServiceError>;
 
     /// 发送原始交易（已解码的领域交易对象）
     ///
@@ -287,7 +295,7 @@ pub trait EthereumService: Send + Sync {
 /// 服务层错误类型
 ///
 /// 定义了所有可能的服务层错误，用于统一错误处理
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum ServiceError {
     /// 区块未找到
     #[error("区块未找到")]
@@ -308,6 +316,22 @@ pub enum ServiceError {
     /// 其他错误
     #[error("{0}")]
     Other(String),
+}
+
+/// 从 CommandError 转换为 ServiceError
+impl From<CommandError> for ServiceError {
+    fn from(err: CommandError) -> Self {
+        match err {
+            CommandError::NotFound(msg) => Self::InternalError(format!("未找到: {}", msg)),
+            CommandError::InvalidParams(msg) => Self::ValidationError(msg),
+            CommandError::ValidationError(msg) => Self::ValidationError(msg),
+            CommandError::UnsupportedCommand(msg) => Self::Other(format!("不支持的命令: {}", msg)),
+            CommandError::InternalError(msg) => Self::InternalError(msg),
+            CommandError::NetworkError(msg) => Self::InternalError(format!("网络错误: {}", msg)),
+            CommandError::DatabaseError(msg) => Self::InternalError(format!("数据库错误: {}", msg)),
+            CommandError::Timeout(msg) => Self::InternalError(format!("超时: {}", msg)),
+        }
+    }
 }
 
 // ============================================================================

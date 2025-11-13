@@ -3,8 +3,8 @@
 //! 本模块提供高性能的以太坊 JSON-RPC 客户端,用于调用远端 RPC 服务。
 //! 遵循整洁架构原则,位于基础设施层,实现了 `EthApiExecutor` trait。
 
-use crate::inbound::json_rpc_trait::EthApiExecutor;
-use crate::inbound::json_rpc::RpcMethodError;
+use crate::infrastructure::json_rpc_trait::EthApiExecutor;
+use crate::infrastructure::json_rpc_trait::RpcMethodError;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

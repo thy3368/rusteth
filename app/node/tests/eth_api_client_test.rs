@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod tests {
     use node::infrastructure::eth_api_client::EthApiClient;
-    use node::inbound::json_rpc_trait::EthApiExecutor;
+    use node::infrastructure::json_rpc_trait::EthApiExecutor;
 
     /// 测试客户端创建
     #[tokio::test]

@@ -1,7 +1,13 @@
-/// 交易验证器 - 包含状态相关的验证逻辑
+/// 交易验证器实现 - 包含状态相关的验证逻辑
 /// 遵循Clean Architecture原则，验证器依赖抽象接口而非具体实现
+///
+/// # 架构分层
+/// - Trait定义: domain::transaction_validator_trait (领域层抽象)
+/// - 具体实现: service::transaction_validator (服务层实现)
+/// - 状态查询: AccountStateProvider trait (基础设施层接口)
 
 use crate::domain::entity_types::{DynamicFeeTx, TransactionValidationError};
+use crate::domain::transaction_validator_trait::TransactionValidator as TransactionValidatorTrait;
 use async_trait::async_trait;
 use ethereum_types::{Address, U256, U64};
 
@@ -178,7 +184,7 @@ impl<S: AccountStateProvider> TransactionValidator<S> {
     }
 
     /// 快速验证（仅基本验证，用于快速拒绝明显无效的交易）
-    pub fn validate_basic(&self, tx: &DynamicFeeTx) -> Result<(), TransactionValidationError> {
+    pub fn validate_basic_internal(&self, tx: &DynamicFeeTx) -> Result<(), TransactionValidationError> {
         tx.validate_basic()?;
         self.validate_chain_id(tx)?;
         self.validate_gas_price(tx)?;
@@ -186,10 +192,31 @@ impl<S: AccountStateProvider> TransactionValidator<S> {
     }
 }
 
+/// 实现 TransactionValidator trait
+/// 通过静态分发（泛型）实现零成本抽象
+#[async_trait]
+impl<S: AccountStateProvider> TransactionValidatorTrait for TransactionValidator<S> {
+    async fn validate_transaction(
+        &self,
+        tx: &DynamicFeeTx,
+        sender: Address,
+    ) -> Result<(), TransactionValidationError> {
+        // 委托给内部实现
+        self.validate_transaction(tx, sender).await
+    }
+
+    fn validate_basic(
+        &self,
+        tx: &DynamicFeeTx,
+    ) -> Result<(), TransactionValidationError> {
+        // 委托给内部实现
+        self.validate_basic_internal(tx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entity_types::AccessListItem;
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
 

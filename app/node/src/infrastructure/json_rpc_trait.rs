@@ -4,7 +4,24 @@
 //! 这是一个端口（Port）定义，遵循整洁架构的依赖倒置原则。
 
 use async_trait::async_trait;
-use crate::inbound::json_rpc::RpcMethodError;
+use thiserror::Error;
+
+/// RPC 方法错误类型（客户端使用）
+#[derive(Debug, Error)]
+pub enum RpcMethodError {
+    #[error("方法未找到: {0}")]
+    MethodNotFound(String),
+    #[error("无效参数: {0}")]
+    InvalidParams(String),
+    #[error("服务错误: {0}")]
+    ServiceError(String),
+    #[error("序列化错误: {0}")]
+    SerializationError(#[from] serde_json::Error),
+    #[error("不支持的功能: {0}")]
+    UnsupportedFeature(String),
+    #[error("内部错误: {0}")]
+    InternalError(String),
+}
 
 /// 以太坊 JSON-RPC API 执行接口
 ///

@@ -6,7 +6,7 @@
 //! - 合约调用测试
 //! - EIP-1559 费用历史测试
 
-use node::inbound::json_rpc_trait::EthApiExecutor;
+use node::infrastructure::json_rpc_trait::EthApiExecutor;
 
 use node::infrastructure::mock_repository::MockEthereumRepository;
 use node::service::ethereum_service_impl::EthereumServiceImpl;
