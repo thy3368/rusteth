@@ -6,7 +6,7 @@
 //! - 故障恢复
 //! - 性能分析
 
-use crate::domain::commands::EthCommand;
+use crate::domain::command_types::EthCommand;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::fmt;

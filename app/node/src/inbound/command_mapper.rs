@@ -6,7 +6,7 @@
 //! - 领域层处理业务逻辑
 //! - 两层之间通过 Command 进行解耦
 
-use crate::domain::commands::EthCommand;
+use crate::domain::command_types::EthCommand;
 use crate::domain::command_types::{BlockId, BlockTag, CallRequest, FilterOptions, SendTransactionRequest};
 use ethereum_types::{Address, H256, U256, U64};
 use thiserror::Error;

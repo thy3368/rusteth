@@ -7,7 +7,7 @@
 /// - 状态查询: AccountStateProvider trait (基础设施层接口)
 
 use crate::domain::entity_types::{DynamicFeeTx, TransactionValidationError};
-use crate::domain::transaction_validator_trait::TransactionValidator as TransactionValidatorTrait;
+use crate::service::transaction_validator_trait::TransactionValidator as TransactionValidatorTrait;
 use async_trait::async_trait;
 use ethereum_types::{Address, U256, U64};
 

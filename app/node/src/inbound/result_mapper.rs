@@ -5,7 +5,7 @@
 //! - 接口层负责数据格式转换
 //! - 将领域对象序列化为 JSON
 
-use crate::domain::commands::CommandResult;
+use crate::domain::command_types::CommandResult;
 use thiserror::Error;
 
 /// Result 映射错误

@@ -1,4 +1,4 @@
-use node::domain::command_dispatcher::CommandDispatcher;
+use node::service::command_dispatcher::CommandDispatcher;
 use node::inbound::json_rpc::EthJsonRpcHandler;
 use node::inbound::server::run_server;
 use node::infrastructure::mock_repository::MockEthereumRepository;
