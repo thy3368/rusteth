@@ -7,7 +7,7 @@
 //! - 两层之间通过 Command 进行解耦
 
 use crate::domain::commands::EthCommand;
-use crate::service::types::{BlockId, BlockTag, CallRequest, FilterOptions, SendTransactionRequest};
+use crate::domain::command_types::{BlockId, BlockTag, CallRequest, FilterOptions, SendTransactionRequest};
 use ethereum_types::{Address, H256, U256, U64};
 use thiserror::Error;
 

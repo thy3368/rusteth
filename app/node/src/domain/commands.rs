@@ -10,7 +10,7 @@
 //! - 使用 enum 实现多态（静态分发）
 //! - 支持 Send + Sync（线程安全）
 
-use crate::service::types::{BlockId, CallRequest, FilterOptions, SendTransactionRequest};
+use crate::domain::command_types::{BlockId, CallRequest, FilterOptions, SendTransactionRequest};
 use ethereum_types::{Address, H256, U256, U64};
 use std::fmt;
 
@@ -204,19 +204,19 @@ pub enum CommandResult {
     // 复杂类型结果
     // ========================================================================
     /// 区块信息
-    Block(Option<crate::service::types::Block>),
+    Block(Option<crate::domain::command_types::Block>),
 
     /// 交易信息
-    Transaction(Option<crate::service::types::Transaction>),
+    Transaction(Option<crate::domain::command_types::Transaction>),
 
     /// 交易收据
-    TransactionReceipt(Option<crate::service::types::TransactionReceipt>),
+    TransactionReceipt(Option<crate::domain::command_types::TransactionReceipt>),
 
     /// 日志列表
-    Logs(Vec<crate::service::types::Log>),
+    Logs(Vec<crate::domain::command_types::Log>),
 
     /// 费用历史
-    FeeHistory(crate::service::types::FeeHistory),
+    FeeHistory(crate::domain::command_types::FeeHistory),
 }
 
 impl EthCommand {
@@ -271,7 +271,7 @@ mod tests {
 
         let cmd = EthCommand::GetBalance(
             Address::zero(),
-            BlockId::Tag(crate::service::types::BlockTag::Latest),
+            BlockId::Tag(crate::domain::command_types::BlockTag::Latest),
         );
         assert_eq!(cmd.name(), "eth_getBalance");
     }

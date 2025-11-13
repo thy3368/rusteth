@@ -19,7 +19,7 @@ use ethereum_types::{Address, H256, U256, U64};
 use thiserror::Error;
 
 // 导入领域类型
-use super::types::{
+use crate::domain::command_types::{
     Block, BlockId, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest,
     Transaction, TransactionReceipt,
 };

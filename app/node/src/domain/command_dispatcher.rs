@@ -4,7 +4,7 @@
 
 use crate::domain::commands::{CommandError, CommandResult, EthCommand};
 use crate::service::ethereum_service::EthereumService;
-use crate::service::types::BlockTag;
+use crate::domain::command_types::BlockTag;
 use ethereum_types::U64;
 use std::sync::Arc;
 
@@ -32,12 +32,12 @@ impl<S: EthereumService> CommandDispatcher<S> {
 
             EthCommand::GetBlockByNumber(block_id, full_tx) => {
                 let number = match block_id {
-                    crate::service::types::BlockId::Number(num) => num,
-                    crate::service::types::BlockId::Tag(BlockTag::Latest) => {
+                    crate::domain::command_types::BlockId::Number(num) => num,
+                    crate::domain::command_types::BlockId::Tag(BlockTag::Latest) => {
                         self.service.get_block_number().await?
                     }
-                    crate::service::types::BlockId::Tag(BlockTag::Earliest) => U64::zero(),
-                    crate::service::types::BlockId::Tag(BlockTag::Pending) => {
+                    crate::domain::command_types::BlockId::Tag(BlockTag::Earliest) => U64::zero(),
+                    crate::domain::command_types::BlockId::Tag(BlockTag::Pending) => {
                         return Err(CommandError::UnsupportedCommand("待处理区块".to_string()))
                     }
                 };

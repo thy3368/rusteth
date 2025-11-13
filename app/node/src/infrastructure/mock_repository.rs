@@ -5,7 +5,7 @@
 use ethereum_types::{Address, Bloom, H256, H64, U256, U64};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use crate::service::types::{Block, Transaction, TransactionReceipt};
+use crate::domain::command_types::{Block, Transaction, TransactionReceipt};
 
 /// 模拟的内存以太坊仓储（支持 Clone 用于静态分发）
 #[derive(Clone)]

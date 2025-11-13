@@ -1,5 +1,5 @@
 use super::ethereum_service::{EthereumService, ServiceError};
-use super::types::{
+use crate::domain::command_types::{
     Block, BlockId, BlockTag, CallRequest, FeeHistory, FilterOptions, Log, SendTransactionRequest,
     Transaction, TransactionReceipt,
 };
@@ -264,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_repository() {
-        use crate::service::types::BlockTag;
+        use crate::domain::command_types::BlockTag;
 
         let mock_repo = MockEthereumRepository::new();
         let service = EthereumServiceImpl::new(mock_repo);

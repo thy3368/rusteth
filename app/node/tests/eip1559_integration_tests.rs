@@ -12,7 +12,7 @@ use node::infrastructure::mock_repository::MockEthereumRepository;
 use node::service::ethereum_service_impl::EthereumServiceImpl;
 use ethereum_types::{Address, U256, U64};
 use node::inbound::json_rpc::EthJsonRpcHandler;
-use node::service::types::{BlockId, BlockTag, CallRequest, SendTransactionRequest};
+use node::domain::command_types::{BlockId, BlockTag, CallRequest, SendTransactionRequest};
 
 #[cfg(test)]
 mod eth_api_client_test;
