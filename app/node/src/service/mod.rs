@@ -6,4 +6,5 @@ pub mod command_dispatcher;
 pub mod transaction_validator_trait;
 pub mod build_block_trait;
 pub mod build_block_impl;
+pub mod block_production_service;
 mod blockchain_impl;

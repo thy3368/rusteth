@@ -180,6 +180,7 @@ impl BlockRepository for InMemoryBlockRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::blockchain_impl::BlockChainImpl;
 
     #[test]
     fn test_block_repository_error_display() {
